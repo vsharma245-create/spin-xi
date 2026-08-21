@@ -131,6 +131,39 @@ try {
   console.log(`  ${staysOffBoards ? 'ok  ' : 'FAIL'} a trophy stays off the season boards`)
   if (!countsInCareer || !staysOffBoards) bad++
 
+  /* ── The daily rotation, applied on its own ── */
+  process.stdout.write('  challenges.sql … ')
+  await db.exec(await file('challenges.sql'))
+  console.log('ok')
+
+  process.stdout.write('  challenges.sql again (re-runnable) … ')
+  await db.exec(await file('challenges.sql'))
+  console.log('ok')
+
+  const rotation = await db.query(
+    'select count(*)::int as slots, count(distinct objective)::int as objectives from challenges',
+  )
+  const { slots, objectives } = rotation.rows[0]
+  // Every objective must be one the simulation can actually check, or it can
+  // never be met; the list here is the switch in sim.ts.
+  const scoreable = new Set([
+    'SET AND DEFEND', 'CHASE MASTER', 'GO UNBEATEN', 'LIFT THE TROPHY',
+    'TOP OF THE TABLE', 'NO CHOKE', 'PERFECT START', 'ON A ROLL', 'COMEBACK',
+    'CENTURION', 'FIVE-FOR', 'BOWLED THEM OUT', 'CRUSHING WIN',
+  ])
+  const listed = await db.query('select distinct objective from challenges')
+  const unscoreable = listed.rows.map((r) => r.objective).filter((o) => !scoreable.has(o))
+  const longEnough = Number(slots) > 365
+  console.log(
+    `  ${longEnough ? 'ok  ' : 'FAIL'} rotation: ${slots} slots, ${objectives} objectives ` +
+      `(repeats after ${slots} days)`,
+  )
+  console.log(
+    `  ${unscoreable.length === 0 ? 'ok  ' : 'FAIL'} every objective has a rule in sim.ts` +
+      (unscoreable.length ? `: ${unscoreable.join(', ')} cannot be met` : ''),
+  )
+  if (!longEnough || unscoreable.length) bad++
+
   /* ── Analytics ── */
   process.stdout.write('  analytics.sql … ')
   await db.exec(await file('analytics.sql'))
@@ -204,6 +237,20 @@ try {
     if (n !== v) bad++
     console.log(`  ${n === v ? 'ok  ' : 'FAIL'} ${k}: ${n}${n === v ? '' : ` (expected ${v})`}`)
   }
+
+  /*
+   * The archive owns the challenges table and has just rebuilt it with the
+   * rotation it was generated against, which is why the count above is the
+   * archive's. Production applies challenges.sql after the archive for exactly
+   * this reason, so the last word on the rotation is checked last here too.
+   */
+  await db.exec(await file('challenges.sql'))
+  const finalRotation = await db.query('select count(*)::int as n from challenges')
+  const finalSlots = Number(finalRotation.rows[0].n)
+  console.log(
+    `  ${finalSlots > 365 ? 'ok  ' : 'FAIL'} rotation survives an archive rebuild: ${finalSlots} slots`,
+  )
+  if (finalSlots <= 365) bad++
 
   // The views are what the game actually reads, so read them.
   const feed = await db.query('select count(*) as n from roster_feed')

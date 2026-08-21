@@ -177,6 +177,10 @@ try {
   client = await connect()
   await run('schema.sql')
   await run('archive.sql')
+  // After the archive, which owns the challenges table and rebuilds it with
+  // whatever rotation it was generated against. This replaces that with the
+  // current one, so the rotation can move without a full dataset rebuild.
+  await run('challenges.sql')
   // Players last, and separately: this file is additive and is never dropped,
   // because the two above delete and rebuild everything they own.
   await run('players.sql')

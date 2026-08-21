@@ -181,13 +181,12 @@ async function askBy(property, ids, label) {
   for (let i = 0; i < wanted.length; i += BATCH) {
     const values = wanted.slice(i, i + BATCH).map((id) => `"${id}"`).join(' ')
     rows.push(
-      ...(await ask(`SELECT ?key ?name ?sport ?citizen ?born WHERE {
+      ...(await ask(`SELECT ?key ?name ?sport ?citizen WHERE {
         VALUES ?key { ${values} }
         ?p wdt:${property} ?key ; rdfs:label ?name .
         FILTER(lang(?name) = "en")
         OPTIONAL { ?p wdt:P1532 ?sc . ?sc rdfs:label ?sport   FILTER(lang(?sport) = "en") }
         OPTIONAL { ?p wdt:P27   ?cc . ?cc rdfs:label ?citizen FILTER(lang(?citizen) = "en") }
-        OPTIONAL { ?p wdt:P569  ?born }
       }`)),
     )
     process.stdout.write(
@@ -282,16 +281,6 @@ for (const p of people) {
 const looksAbbreviated = (name) => /^[A-Z]{1,4}\b/.test(name.split(' ')[0] ?? '')
 const cleanLabel = (label) => label.replace(/\s*\([^)]*\)\s*$/, '').trim()
 
-/**
- * Year of birth, so a card can say how old somebody was that season.
- *
- * Nearly every cricketer Wikidata knows about has one — 97.7% of the matched
- * sample — which is why this is the only biographical field taken from there.
- * Batting hand and bowling style are not on Wikidata in any usable quantity
- * (0% and 0.9% of the same sample), so they are not attempted rather than
- * shipped as a column that is empty for everybody.
- */
-const born = {}
 const names = {}
 const nations = {}
 const via = { identifier: 0, name: 0 }
@@ -302,11 +291,6 @@ for (const p of people) {
     const claims = byKey.get(identifier)
     const label = cleanLabel(claims[0].name ?? '')
     if (label && !looksAbbreviated(label) && looksAbbreviated(p.name)) names[p.identifier] = label
-    // Dates arrive as ISO timestamps; only the year is ever shown, and a
-    // Wikidata date of unknown precision can carry a nonsense month and day.
-    const date = claims.map((c) => c.born).find(Boolean)
-    const year = date ? Number(String(date).slice(0, 4)) : NaN
-    if (year >= 1850 && year <= new Date().getFullYear()) born[p.identifier] = year
     const code = settle(claims)
     if (code) { nations[p.identifier] = code; via.identifier++; continue }
   }
@@ -319,7 +303,7 @@ for (const p of people) {
   }
 }
 
-await writeFile(OUT, JSON.stringify({ built: new Date().toISOString(), via, nations, names, born }))
+await writeFile(OUT, JSON.stringify({ built: new Date().toISOString(), via, nations, names }))
 
 const spread = {}
 for (const c of Object.values(nations)) spread[c] = (spread[c] ?? 0) + 1

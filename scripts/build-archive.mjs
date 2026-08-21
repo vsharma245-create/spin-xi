@@ -17,6 +17,7 @@
  *                 is that nationality — and with 3,521 T20Is and 2,569 ODIs in
  *                 the archive that now settles nearly everyone
  */
+import { challengeRows } from './challenges.mjs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -175,12 +176,10 @@ const LEAGUE_HOME = {
  */
 let wikidata = {}
 let wikidataNames = {}
-let wikidataBorn = {}
 try {
   const table = JSON.parse(await readFile(join(ROOT, '.cricsheet/nations.json'), 'utf8'))
   wikidata = table.nations
   wikidataNames = table.names ?? {}
-  wikidataBorn = table.born ?? {}
 } catch {
   console.log('  ! no .cricsheet/nations.json — run `npm run nations` first for accurate nationality')
 }
@@ -431,7 +430,6 @@ for (const r of rows) {
       name: display,
       surname: surnameOf(r.player),
       nation: nationOfPlayer.get(r.id) ?? 'IN',
-      born: wikidataBorn[r.id] ?? null,
     })
   }
 
@@ -590,53 +588,6 @@ function cardStats(r, role = r.role) {
   }
 }
 
-/* ── Daily challenges ──────────────────────────────────────────────────── */
-
-/**
- * The day's puzzle is a rotation rather than a row per date, so every player
- * sees the same challenge on the same day without anyone having to keep a
- * calendar topped up.
- *
- * The slot count is the lowest common multiple of the three cycles below —
- * the day a pairing of format, shape and objective first repeats. Thirteen
- * objectives is not an arbitrary number: twelve or fourteen share a factor
- * with the six presets or the seven formats and collapse the cycle back to
- * 84 and 42 days respectively. Thirteen gives 546, comfortably longer than
- * the year a daily player would otherwise notice going round again.
- *
- * Every objective here must have a case in objectiveMet(); one that does not
- * can never be met.
- */
-const FORMAT_CYCLE = ['T20L', 'ODIWC', 'T20L', 'T20WC', 'T20L', 'TEST', 'ODIWC']
-const PRESET_CYCLE = ['BALANCED', 'CLASSIC_ODI', 'BALANCED', 'PACE_BATTERY', 'BALANCED', 'AR_ARMY']
-const OBJECTIVES = [
-  ['SET AND DEFEND', 'Win 4+ matches batting first.'],
-  ['CHASE MASTER', 'Win 5+ matches chasing a target.'],
-  ['GO UNBEATEN', 'Finish the group stage without a loss.'],
-  ['LIFT THE TROPHY', 'Win the final. Nothing else counts.'],
-  ['TOP OF THE TABLE', 'Finish the group stage in first place.'],
-  ['NO CHOKE', 'Reach the knockouts and lose none of them.'],
-  ['PERFECT START', 'Win your first four matches.'],
-  ['ON A ROLL', 'Win six matches in a row.'],
-  ['COMEBACK', 'Lose a match, then win the next three.'],
-  ['CENTURION', 'Have someone score a hundred in an innings.'],
-  ['FIVE-FOR', 'Have someone take five wickets in an innings.'],
-  ['BOWLED THEM OUT', 'Bowl the opposition all out twice.'],
-  ['CRUSHING WIN', 'Win by 50+ runs, or with 8 wickets in hand.'],
-]
-const SLOTS = 546 // lcm(7 formats, 6 presets, 13 objectives)
-const challengeRows = Array.from({ length: SLOTS }, (_, slot) => {
-  const [title, desc] = OBJECTIVES[slot % OBJECTIVES.length]
-  return [
-    slot,
-    `'${FORMAT_CYCLE[slot % FORMAT_CYCLE.length]}'`,
-    `'${PRESET_CYCLE[slot % PRESET_CYCLE.length]}'`,
-    `'${title}'`,
-    `'${desc}'`,
-    'true',
-  ]
-})
-
 /* ── Emit ──────────────────────────────────────────────────────────────── */
 
 const q = (v) => (v === null || v === undefined ? 'null' : `'${String(v).replace(/'/g, "''")}'`)
@@ -685,7 +636,7 @@ ${insert('challenges', ['slot', 'format', 'preset_id', 'objective', 'objective_d
 
 ${insert('teams', ['key', 'region', 'home_nation'], [...teams.values()].map((t) => [q(t.key), q(t.region), q(t.home)]))}
 
-${insert('players', ['id', 'name', 'surname', 'nation', 'born'], [...players.values()].map((p) => [q(p.id), q(p.name), q(p.surname), q(p.nation), n(p.born)]))}
+${insert('players', ['id', 'name', 'surname', 'nation'], [...players.values()].map((p) => [q(p.id), q(p.name), q(p.surname), q(p.nation)]))}
 
 ${insert('squads', ['id', 'team_key', 'team_name', 'team_short', 'season', 'competition', 'formats'], [...squads.values()].map((s) => [q(s.id), q(s.key), q(s.name), q(s.short), q(s.season), q(s.comp), arr(s.formats)]))}
 

@@ -13,6 +13,7 @@
     "db:push": "node scripts/db-push.mjs",
     "ingest": "node scripts/ingest-cricsheet.mjs",
     "archive": "node scripts/build-archive.mjs",
+    "challenges": "node scripts/build-challenges.mjs",
     "nations": "node scripts/fetch-nations.mjs",
     "db:check": "node scripts/db-check.mjs",
     "audit": "node scripts/audit.mjs"
