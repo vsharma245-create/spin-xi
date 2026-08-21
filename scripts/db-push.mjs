@@ -180,6 +180,10 @@ try {
   // Players last, and separately: this file is additive and is never dropped,
   // because the two above delete and rebuild everything they own.
   await run('players.sql')
+  // Telemetry last of all. It only ever adds, it is read by nothing the game
+  // renders, and keeping it after the player tables means a failure here
+  // cannot leave a ladder half-built.
+  await run('analytics.sql')
 
   // The player side has no expected counts — it grows on its own — so it is
   // checked for existence rather than size.
@@ -188,6 +192,8 @@ try {
       to_regclass('public.profiles')     is not null as profiles,
       to_regclass('public.results')      is not null as results,
       to_regclass('public.player_stats') is not null as player_stats,
+      to_regclass('public.events')       is not null as events,
+      to_regclass('public.funnel_daily') is not null as funnel_daily,
       to_regclass('public.ladder')       is not null as ladder,
       to_regclass('public.daily_board')  is not null as daily_board
   `)
