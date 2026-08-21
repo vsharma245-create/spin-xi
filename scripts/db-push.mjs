@@ -11,6 +11,7 @@
  * string → URI, and replace [YOUR-PASSWORD] with the database password you
  * set when you created the project.
  */
+import { SLOTS } from './challenges.mjs'
 import { readFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import { join } from 'node:path'
@@ -223,6 +224,10 @@ try {
   // What the archive build said it produced, rather than a number typed here
   // that goes stale the first time the dataset grows.
   const expected = JSON.parse(await readFile(join(ROOT, 'supabase/archive.json'), 'utf8')).counts
+  // The rotation is applied after the archive and from its own file, so the
+  // archive's idea of how many challenges there are is one revision behind by
+  // design. Ask the module that actually generates them.
+  expected.challenges = SLOTS
   const wrong = Object.entries(expected).filter(([k, v]) => Number(c[k]) !== v)
   console.log(
     wrong.length
