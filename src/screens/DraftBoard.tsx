@@ -245,7 +245,9 @@ export default function DraftBoard({
                 <Button size="lg" full onClick={spin}>
                   Spin
                 </Button>
-                <p className="mt-2 text-[10px] font-semibold uppercase tracking-label text-moss">
+                {/* Advice for a keyboard, offered to a phone that has none.
+                    Shown where there is one to press. */}
+                <p className="mt-2 hidden text-[10px] font-semibold uppercase tracking-label text-moss sm:block">
                   or press space
                 </p>
               </div>

@@ -525,7 +525,10 @@ export default function Simulation({
           <div className="mt-4">
             <div className="mb-1 flex items-baseline justify-between">
               <span className="label-lg">match feed</span>
-              <span className="label">tap any match for the scorecard</span>
+              <span className="label">
+                <span className="sm:hidden">tap for scorecard</span>
+                <span className="hidden sm:inline">tap any match for the scorecard</span>
+              </span>
             </div>
             <div className="surface max-h-[300px] divide-y divide-white/[0.05] overflow-y-auto px-3.5">
               {feed.map((m) => (

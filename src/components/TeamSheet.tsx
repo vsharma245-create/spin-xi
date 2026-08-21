@@ -27,7 +27,9 @@ export function XIRail({
           {slots.filter((s) => s.player).length} / {slots.length} · tap to open
         </span>
       </div>
-      <div className="no-bar flex gap-1 overflow-x-auto pb-0.5">
+      {/* A little room past the last chip, so the rail ends rather than
+          looking as though it has been cut off by the screen edge. */}
+      <div className="no-bar flex gap-1 overflow-x-auto pb-0.5 pr-3">
         {slots.map((s, i) => {
           const role = ROLE_STYLE[s.role]
           const tier = s.player ? ovrTier(s.player.ovr) : null

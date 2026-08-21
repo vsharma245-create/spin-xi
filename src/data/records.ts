@@ -184,6 +184,22 @@ export async function saveResult(
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify(row),
   })
+
+  /*
+   * Stamp the first season this account ever finished.
+   *
+   * The condition is in the filter rather than in a read-then-write, so two
+   * seasons finishing at once cannot both decide they are the first. Only rows
+   * where it is still null are touched, which also makes this free to call on
+   * every result for ever.
+   */
+  void api(`profiles?id=eq.${account.id}&first_result_at=is.null`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ first_result_at: new Date().toISOString() }),
+  }).catch(() => {
+    /* the column may not exist yet; the season is already saved either way */
+  })
 }
 
 /**

@@ -50,7 +50,18 @@ export function MatchRow({
           >
             {match.knockout ? match.round : match.opponent}
           </span>
-          <span className="tnum shrink-0 text-[9px] font-bold text-moss">
+          {/*
+           * "MATCH 03" beside the opposition costs a phone about eighty
+           * pixels, and the feed is already in order — the row above is match
+           * four. The side you played is the thing worth reading, and it was
+           * the thing being truncated to "DAMBULLA SIXE…". A knockout keeps
+           * its label either way, because "SEMI-FINAL" is not an ordinal.
+           */}
+          <span
+            className={`tnum shrink-0 text-[9px] font-bold text-moss ${
+              match.knockout ? '' : 'hidden sm:inline'
+            }`}
+          >
             {match.knockout ? match.opponent : match.round}
           </span>
         </div>
