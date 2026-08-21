@@ -194,10 +194,53 @@ export async function loadSplits(): Promise<Split[]> {
 }
 
 /** A tournament's board: every player's best season in it. */
-export async function loadLadder(format: Format, limit = 50): Promise<LadderRow[]> {
-  return api<LadderRow[]>(
-    `ladder?select=*&format=eq.${format}&order=points.desc&limit=${limit}`,
+/** Midnight this morning, in the player's own timezone, as the API wants it. */
+export function startOfToday(): string {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString()
+}
+
+/**
+ * A tournament board over a window of time.
+ *
+ * The `ladder` view answers "best ever", which cannot also answer "best
+ * today", so this reads the seasons themselves and keeps each player's best
+ * one. Daily runs are left out: everybody drafts from the same squads that
+ * day, so it is a different contest and has its own board.
+ *
+ * Two round trips — the seasons, then the career experience of whoever is on
+ * the board, which lives in a view the seasons cannot be joined to. The row
+ * cap is deliberate; a board nobody scrolls does not need every season ever
+ * played, and the alternative is DISTINCT ON, which PostgREST cannot express.
+ */
+export async function loadBoard(
+  format: Format,
+  since: string | null,
+  limit = 50,
+): Promise<LadderRow[]> {
+  const when = since ? `&created_at=gte.${since}` : ''
+  const seasons = await api<
+    (Omit<LadderRow, 'xp' | 'handle'> & { profiles: { handle: string } | null })[]
+  >(
+    `results?select=player,format,points,runs,wickets,wins,losses,draws,nrr,perfect,profiles(handle)` +
+      `&format=eq.${format}&mode=eq.quick${when}&order=points.desc&limit=400`,
   )
+
+  const best = new Map<string, LadderRow>()
+  for (const row of seasons) {
+    if (best.has(row.player)) continue // already have their best: rows arrive sorted
+    best.set(row.player, { ...row, handle: row.profiles?.handle ?? 'Unknown', xp: null })
+  }
+  const rows = [...best.values()].slice(0, limit)
+  if (!rows.length) return rows
+
+  const ids = rows.map((r) => r.player).join(',')
+  const careers = await api<{ id: string; xp: number }[]>(
+    `player_stats?select=id,xp&id=in.(${ids})`,
+  ).catch(() => [])
+  const xpOf = new Map(careers.map((c) => [c.id, c.xp]))
+  return rows.map((r) => ({ ...r, xp: xpOf.get(r.player) ?? null }))
 }
 
 /** Today's daily, where everyone shared a draw. */
