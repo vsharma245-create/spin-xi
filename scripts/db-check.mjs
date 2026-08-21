@@ -151,6 +151,29 @@ try {
     'TOP OF THE TABLE', 'NO CHOKE', 'PERFECT START', 'ON A ROLL', 'COMEBACK',
     'CENTURION', 'FIVE-FOR', 'BOWLED THEM OUT', 'CRUSHING WIN',
   ])
+  // The SQL builds the rotation from three arrays and a modulo. That is only
+  // right if it agrees with the same three cycles in challenges.mjs, so a
+  // sample of slots is compared against them rather than trusted.
+  const { challengeRows } = await import('./challenges.mjs')
+  const probeSlots = [0, 1, 12, 13, 41, 42, 200, 365, 545]
+  const sampled = await db.query(
+    `select slot, format, preset_id, objective from challenges where slot in (${probeSlots.join(',')}) order by slot`,
+  )
+  const drift = sampled.rows.filter((row) => {
+    const want = challengeRows[row.slot]
+    const strip = (v) => String(v).replace(/^'|'$/g, '')
+    return (
+      strip(want[1]) !== row.format ||
+      strip(want[2]) !== row.preset_id ||
+      strip(want[3]) !== row.objective
+    )
+  })
+  console.log(
+    `  ${drift.length === 0 ? 'ok  ' : 'FAIL'} generated rotation matches the cycles it came from` +
+      (drift.length ? ` — slot ${drift[0].slot} differs` : ` (${probeSlots.length} slots checked)`),
+  )
+  if (drift.length) bad++
+
   const listed = await db.query('select distinct objective from challenges')
   const unscoreable = listed.rows.map((r) => r.objective).filter((o) => !scoreable.has(o))
   const longEnough = Number(slots) > 365
