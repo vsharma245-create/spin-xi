@@ -7,7 +7,7 @@ import { loadHistory, loadSplits, loadStats } from '../data/records'
 import type { Split } from '../data/records'
 import type { Format } from '../game/types'
 import { useAsync } from '../data/useAsync'
-import { identity } from '../data/account'
+import { identity, signOut } from '../data/account'
 import { ClaimAccount } from '../components/ClaimAccount'
 import { HandleEditor } from '../components/HandleEditor'
 import { FORMAT_ORDER, TOURNAMENTS } from '../game/types'
@@ -85,6 +85,19 @@ export default function Profile() {
   const stats = useAsync(() => loadStats(), [])
   // Held here so a rename shows immediately, rather than after a refetch.
   const [renamed, setRenamed] = useState<string | null>(null)
+
+  /*
+   * Signing out is only offered once Google is attached, because for a guest
+   * it would not be signing out — the token in this browser is the only thing
+   * that identifies the record, and dropping it destroys the career rather
+   * than parking it. A full reload rather than a state reset: every screen
+   * holds something read as the previous player, and the cheapest way to be
+   * certain none of it survives is to start the app again.
+   */
+  const leave = () => {
+    signOut()
+    window.location.href = '/'
+  }
   const splits = useAsync(() => loadSplits(), [])
   const history = useAsync(() => loadHistory(20), [])
   const who = useAsync(() => identity(), [])
@@ -230,6 +243,12 @@ export default function Profile() {
               {who.data.email ?? 'Signed in'} — sign in with Google on any device to pick it up.
             </div>
           </div>
+          <button
+            onClick={leave}
+            className="ml-auto shrink-0 rounded-lg border border-white/10 px-2.5 py-1.5 text-[9.5px] font-bold uppercase tracking-label text-moss transition-colors hover:border-leather/40 hover:text-leather"
+          >
+            Sign out
+          </button>
         </div>
       )}
 

@@ -421,4 +421,7 @@ export async function rename(raw: string): Promise<Account> {
 export function signOut() {
   writeSession(null)
   current = null
+  // Any establish already in flight would resolve with the session just
+  // dropped, and hand it to whoever asks next.
+  pending = null
 }
