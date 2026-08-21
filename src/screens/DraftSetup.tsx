@@ -243,7 +243,16 @@ export default function DraftSetup({
                   <span className="tnum text-[9.5px] font-bold text-gold">{t.perfect}</span>
                 </div>
                 <div className="display mt-1 text-[13.5px] leading-tight">{t.name}</div>
-                <div className="mt-0.5 text-[10px] leading-snug text-moss">{t.blurb}</div>
+                {/*
+                 * Two of these blurbs wrap to two lines on a phone and two to
+                 * one, so four cards that should read as a set came out
+                 * ragged. The name and the perfect score are the choice; the
+                 * sentence is colour, and colour is what a small screen has
+                 * least room for.
+                 */}
+                <div className="mt-0.5 hidden text-[10px] leading-snug text-moss sm:block">
+                  {t.blurb}
+                </div>
               </Option>
             )
           })}

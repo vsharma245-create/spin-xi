@@ -255,3 +255,33 @@ export function Divider({ label }: { label?: string }) {
     </div>
   )
 }
+
+/**
+ * Reference text — how ranking works, what a rating means.
+ *
+ * It earns its place on a laptop, where it sits in the margin of attention
+ * beside the thing it explains. On a phone the same words are most of a
+ * screen, and a player who came to look at a ladder has to scroll past an
+ * essay to leave. So the phone gets it folded away and the desktop keeps it
+ * open: same words, read when wanted.
+ */
+export function Explainer({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mt-8">
+      <details className="group rounded-card border border-white/[0.06] px-3.5 py-2.5 sm:hidden">
+        <summary className="label-lg flex cursor-pointer list-none items-center justify-between text-moss [&::-webkit-details-marker]:hidden">
+          {title}
+          <span className="text-[10px] text-moss/60 transition-transform group-open:rotate-180">
+            ▼
+          </span>
+        </summary>
+        <div className="mt-3 text-[11.5px] leading-relaxed text-moss">{children}</div>
+      </details>
+
+      <div className="hidden sm:block">
+        <SectionLabel>{title}</SectionLabel>
+        <p className="text-[11.5px] leading-relaxed text-moss">{children}</p>
+      </div>
+    </div>
+  )
+}

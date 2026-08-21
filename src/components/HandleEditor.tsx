@@ -67,7 +67,7 @@ export function HandleEditor({
         className="group flex min-w-0 items-center gap-2 text-left"
         aria-label="Change your name"
       >
-        <h1 className="display truncate text-[30px] leading-none">{handle}</h1>
+        <h1 className="display truncate text-[22px] leading-none sm:text-[30px]">{handle}</h1>
         <svg
           viewBox="0 0 24 24"
           className="h-4 w-4 shrink-0 text-moss transition-colors group-hover:text-willow"
@@ -108,7 +108,7 @@ export function HandleEditor({
           autoFocus
           spellCheck={false}
           autoComplete="off"
-          className="display min-w-0 flex-1 rounded-lg border border-willow/40 bg-white/[0.04] px-2 py-1 text-[22px] leading-none text-cream outline-none focus:border-willow disabled:opacity-50"
+          className="display min-w-0 flex-1 rounded-lg border border-willow/40 bg-white/[0.04] px-2 py-1 text-[18px] leading-none text-cream outline-none focus:border-willow disabled:opacity-50 sm:text-[22px]"
         />
         <button
           type="submit"

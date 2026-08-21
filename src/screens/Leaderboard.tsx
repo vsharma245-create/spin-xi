@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Screen, SectionLabel } from '../components/ui'
+import { Explainer, Screen, SectionLabel } from '../components/ui'
 import { dailyEntrants, loadBoard, loadDaily, loadStats, startOfToday } from '../data/records'
 import type { LadderRow } from '../data/records'
 import { useAsync } from '../data/useAsync'
@@ -77,7 +77,7 @@ export default function Leaderboard() {
   return (
     <Screen>
       <div className="pt-2">
-        <h1 className="display mt-1 text-[34px] md:text-[46px]">Leaderboard</h1>
+        <h1 className="display mt-1 text-[26px] sm:text-[34px] md:text-[46px]">Leaderboard</h1>
         <p className="mt-1.5 text-[12.5px] text-moss">
           {board === 'DAILY'
             ? entrants.data
@@ -110,17 +110,19 @@ export default function Leaderboard() {
             <button
               key={f}
               onClick={() => setFormat(f)}
-              className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+              className={`rounded-xl border px-3 py-2 text-left transition-colors sm:py-2.5 ${
                 format === f
                   ? 'border-pitch/45 bg-pitch/[0.08]'
                   : 'border-white/[0.08] bg-ink-700 hover:border-white/20'
               }`}
             >
-              <div className="text-[9px] font-bold uppercase tracking-label text-moss">
+              {/* The short code says what the name below it already says;
+                  on a phone that is a line of height for nothing. */}
+              <div className="hidden text-[9px] font-bold uppercase tracking-label text-moss sm:block">
                 {TOURNAMENTS[f].short}
               </div>
               <div
-                className={`mt-0.5 truncate text-[12px] font-extrabold uppercase tracking-[0.03em] ${
+                className={`truncate text-[11.5px] font-extrabold uppercase tracking-[0.03em] sm:mt-0.5 sm:text-[12px] ${
                   format === f ? 'text-pitch' : 'text-cream'
                 }`}
               >
@@ -150,8 +152,8 @@ export default function Leaderboard() {
           <span className="w-6 shrink-0">#</span>
           <span className="w-7 shrink-0" />
           <span className="flex-1">player</span>
-          <span className="tnum w-16 shrink-0 text-right">runs · wkts</span>
-          <span className="w-11 shrink-0 text-right">w–l</span>
+          <span className="tnum hidden w-16 shrink-0 text-right sm:block">runs · wkts</span>
+          <span className="hidden w-11 shrink-0 text-right sm:block">w–l</span>
           <span className="w-14 shrink-0 text-right">points</span>
         </div>
         {showing.loading && (
@@ -221,14 +223,25 @@ export default function Leaderboard() {
                     </span>
                   )}
                 </div>
+                {/*
+                 * Six columns do not fit across a phone. Squeezed in, the name
+                 * — the one thing a ladder is for — was the column that lost,
+                 * truncating to "Co…" beside a fully legible run tally. So on
+                 * a narrow screen the figures move under the name, where there
+                 * is a whole line free, and the name gets the width.
+                 */}
                 <div className="truncate text-[9.5px] font-semibold uppercase tracking-wider text-moss">
-                  {titleForLevel(level)}
+                  <span className="sm:hidden">
+                    {r.wins}–{r.losses}
+                    {isTest ? `–${r.draws}` : ''} · {r.runs.toLocaleString()} runs · {r.wickets} wkts
+                  </span>
+                  <span className="hidden sm:inline">{titleForLevel(level)}</span>
                 </div>
               </div>
-              <span className="tnum w-16 shrink-0 text-right text-[10.5px] font-bold text-moss">
+              <span className="tnum hidden w-16 shrink-0 text-right text-[10.5px] font-bold text-moss sm:block">
                 {r.runs.toLocaleString()} · {r.wickets}
               </span>
-              <span className="tnum w-11 shrink-0 text-right text-[12px] font-bold text-cream-dim">
+              <span className="tnum hidden w-11 shrink-0 text-right text-[12px] font-bold text-cream-dim sm:block">
                 {r.wins}–{r.losses}
                 {isTest ? `–${r.draws}` : ''}
               </span>
@@ -248,9 +261,8 @@ export default function Leaderboard() {
         </p>
       )}
 
-      <div className="mt-8">
-        <SectionLabel>how ranking works</SectionLabel>
-        <p className="text-[11.5px] leading-relaxed text-moss">
+      <Explainer title="how ranking works">
+        <>
           Every tournament keeps its own ladder, because a fourteen-game league and a twelve-Test
           championship are not the same achievement and should not share a win column.
           <br />
@@ -274,8 +286,8 @@ export default function Leaderboard() {
           Every row is a season somebody actually played. Results are stored with the seed and the
           eleven that produced them, and the simulation is deterministic, so any run on this board
           can be recomputed and checked.
-        </p>
-      </div>
+        </>
+      </Explainer>
     </Screen>
   )
 }
