@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Screen } from '../components/ui'
 import { todaysChallenge } from '../data/challenges'
 import { makeRng, newDraft } from '../game/draft'
-import { loadDaily, saveResult } from '../data/records'
+import { loadDaily, saveResult, track } from '../data/records'
 import type { DraftConfig, DraftState, Format, TournamentResult } from '../game/types'
 import ChampionsTrophy from './ChampionsTrophy'
 import DraftBoard from './DraftBoard'
@@ -61,6 +61,29 @@ export default function Play() {
   const [result, setResult] = useState<TournamentResult | null>(null)
   const [rank, setRank] = useState<number | null>(null)
 
+  /*
+   * An identity for the draft in progress, and when it began.
+   *
+   * Started, abandoned and finished are three rows about one thing; without a
+   * shared id they can only be matched up by guessing from timestamps, which
+   * stops working the moment somebody plays twice in a minute. Refs rather
+   * than state: nothing on screen reads them, and a re-render for a value
+   * only telemetry cares about would be a waste.
+   */
+  const draftId = useRef<string>('')
+  const startedAt = useRef<number>(0)
+
+  const beginDraft = (config: DraftConfig, mode: 'quick' | 'daily') => {
+    draftId.current = crypto.randomUUID()
+    startedAt.current = Date.now()
+    track('draft_started', draftId.current, {
+      mode,
+      format: config.format,
+      preset: config.presetId,
+      difficulty: config.difficulty,
+    })
+  }
+
   /**
    * The tournament's RNG, created once when the player hits simulate. Daily runs
    * are seeded by the day and the XI so the same team always plays out the same
@@ -70,6 +93,19 @@ export default function Play() {
   // Kept so the season can be recorded with the seed that produced it: the
   // simulation is deterministic, so seed plus XI is enough to replay and check.
   const [seed, setSeed] = useState<number | null>(null)
+
+  /*
+   * A daily draft is already under way when this screen mounts — its state is
+   * built in the initialiser, not by pressing start — so it would otherwise be
+   * the one kind of draft that never reported starting, and every daily would
+   * look like a completion out of nowhere.
+   */
+  useEffect(() => {
+    if (!isDaily || !state) return
+    beginDraft(state.config, 'daily')
+    // Once, for the draft this mount created.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDaily])
 
   const startSim = () => {
     if (!state) return
@@ -83,6 +119,7 @@ export default function Play() {
   }
 
   const start = (config: DraftConfig) => {
+    beginDraft(config, 'quick')
     setState(newDraft('quick', config))
     setPhase('draft')
   }
@@ -95,11 +132,27 @@ export default function Play() {
    */
   const restart = (next: Partial<DraftConfig>) => {
     if (!state) return
+    track('draft_abandoned', draftId.current, {
+      mode: state.mode,
+      format: state.config.format,
+      // How far they got before leaving is the whole question: abandoning on
+      // the first spin and abandoning on the tenth pick are different problems.
+      picks: state.slots.filter((slot) => slot.player).length,
+      seconds: Math.round((Date.now() - startedAt.current) / 1000),
+    })
     start({ ...state.config, ...next })
   }
 
   const finish = (r: TournamentResult) => {
     setResult(r)
+    const took = startedAt.current ? Date.now() - startedAt.current : null
+    track('draft_completed', draftId.current, {
+      mode: r.mode,
+      format: r.format,
+      outcome: r.outcome,
+      wins: r.wins,
+      seconds: took ? Math.round(took / 1000) : null,
+    })
     // Recorded on the server, which is where a career lives. Written after the
     // result is on screen, so a slow network never delays the reveal — and if
     // the write fails the season is lost rather than the screen.
@@ -108,6 +161,7 @@ export default function Play() {
       seed: seed ?? undefined,
       years: state?.config.years ?? null,
       worldTeams: state?.config.worldTeams ?? true,
+      durationMs: took,
     }).catch(() => {
       /* Offline, or signed out. The local copy stands and the ladder misses
          one row — worth far less than blocking the result screen on a POST. */

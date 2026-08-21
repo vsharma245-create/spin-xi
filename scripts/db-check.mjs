@@ -131,7 +131,59 @@ try {
   console.log(`  ${staysOffBoards ? 'ok  ' : 'FAIL'} a trophy stays off the season boards`)
   if (!countsInCareer || !staysOffBoards) bad++
 
-  process.stdout.write('  archive.sql again (re-runnable) … ')
+  /* ── Analytics ── */
+  process.stdout.write('  analytics.sql … ')
+  await db.exec(await file('analytics.sql'))
+  console.log('ok')
+
+  process.stdout.write('  analytics.sql again (re-runnable) … ')
+  await db.exec(await file('analytics.sql'))
+  console.log('ok')
+
+  // Events go in, and the funnel view can read them back.
+  const draft = '22222222-2222-2222-2222-222222222222'
+  await db.exec(`
+    insert into events (player, name, draft_id, detail) values
+      ('${who}', 'draft_started',   '${draft}', '{"format":"T20L"}'),
+      ('${who}', 'draft_abandoned', '${draft}', '{"picks":4}'),
+      ('${who}', 'draft_started',   '${draft}', '{"format":"TEST"}'),
+      ('${who}', 'draft_completed', '${draft}', '{"format":"TEST"}');
+    update profiles set last_seen_at = now(), first_result_at = now() where id = '${who}';
+  `)
+  const funnel = await db.query('select started, abandoned, completed, players from funnel_daily')
+  const f = funnel.rows[0] ?? {}
+  const funnelOk = Number(f.started) === 2 && Number(f.abandoned) === 1 && Number(f.completed) === 1
+  console.log(
+    `  ${funnelOk ? 'ok  ' : 'FAIL'} funnel_daily: ` +
+      `${f.started} started, ${f.abandoned} abandoned, ${f.completed} completed`,
+  )
+  if (!funnelOk) bad++
+
+  const ret = await db.query('select accounts, returned, played from retention')
+  console.log(`  ok   retention: ${ret.rows[0].accounts} account, ${ret.rows[0].played} played`)
+
+  // The new result columns accept a duration and a dataset stamp.
+  await db.exec(`
+    update results set duration_ms = 184000, dataset_version = gen_random_uuid()
+    where player = '${who}' and mode = 'trophy'
+  `)
+  const timed = await db.query(
+    `select count(*)::int as n from results where duration_ms is not null and dataset_version is not null`,
+  )
+  console.log(`  ${Number(timed.rows[0].n) === 1 ? 'ok  ' : 'FAIL'} results carry duration and dataset version`)
+  if (Number(timed.rows[0].n) !== 1) bad++
+
+  // A duration longer than a day is a bug in the client, not a marathon.
+  let capped = false
+  try {
+    await db.exec(`update results set duration_ms = 90000000 where player = '${who}'`)
+  } catch {
+    capped = true
+  }
+  console.log(`  ${capped ? 'ok  ' : 'FAIL'} an impossible duration is refused`)
+  if (!capped) bad++
+
+  process.stdout.write('\n  archive.sql again (re-runnable) … ')
   await db.exec(await file('archive.sql'))
   console.log('ok')
 

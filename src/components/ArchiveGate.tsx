@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { completeRedirect } from '../data/account'
+import { touch } from '../data/records'
 import { loadArchive } from '../data/repository'
 import { BallMark } from './icons'
 import { Button } from './ui'
@@ -27,6 +28,8 @@ export function ArchiveGate({ children }: { children: ReactNode }) {
      * goes out as the old anonymous user — or as nobody at all.
      */
     completeRedirect()
+    // Who was here today. Fire and forget; nothing waits on it.
+    touch()
     loadArchive().then(
       () => live && setState('ready'),
       (err: Error) => {

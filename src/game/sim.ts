@@ -680,13 +680,36 @@ export function playKnockout(
 
 /* ── Objectives ──────────────────────────────────────────────────────────── */
 
+/** The longest run of wins anywhere in a season. */
+function bestStreak(matches: MatchResult[]): number {
+  let best = 0
+  let run = 0
+  for (const m of matches) {
+    run = m.outcome === 'W' ? run + 1 : 0
+    if (run > best) best = run
+  }
+  return best
+}
+
+/**
+ * Did the season meet the day's objective?
+ *
+ * An objective that cannot be checked here is not met. It used to fall through
+ * to "reached the knockouts", which meant a new row in the challenges table —
+ * or a typo in an old one — silently awarded a badge for something the player
+ * had not been asked to do.
+ */
 function objectiveMet(
   title: string,
   group: MatchResult[],
   knockouts: MatchResult[],
   outcome: TournamentResult['outcome'],
+  standing: number,
 ) {
+  const all = [...group, ...knockouts]
+
   switch (title) {
+    /* ── Results ── */
     case 'SET AND DEFEND':
       return group.filter((m) => m.outcome === 'W' && m.battedFirst).length >= 4
     case 'CHASE MASTER':
@@ -695,8 +718,40 @@ function objectiveMet(
       return group.every((m) => m.outcome !== 'L')
     case 'LIFT THE TROPHY':
       return outcome === 'CHAMPIONS'
+    case 'TOP OF THE TABLE':
+      return standing === 1
+    case 'NO CHOKE':
+      return knockouts.length > 0 && knockouts.every((m) => m.outcome !== 'L')
+
+    /* ── Shape of the season ── */
+    case 'PERFECT START':
+      return group.length >= 4 && group.slice(0, 4).every((m) => m.outcome === 'W')
+    case 'ON A ROLL':
+      return bestStreak(all) >= 6
+    case 'COMEBACK': {
+      // A loss, then three wins on the bounce. Recovering, not merely winning.
+      const i = all.findIndex((m) => m.outcome === 'L')
+      return i >= 0 && all.slice(i + 1, i + 4).filter((m) => m.outcome === 'W').length === 3
+    }
+
+    /* ── Individual performances ── */
+    case 'CENTURION':
+      return all.some((m) => m.card.batting.some((b) => b.runs >= 100))
+    case 'FIVE-FOR':
+      return all.some((m) => m.card.bowling.some((b) => b.wickets >= 5))
+    case 'BOWLED THEM OUT':
+      return all.filter((m) => m.card.theirScore.wickets >= 10).length >= 2
+    case 'CRUSHING WIN':
+      return all.some(
+        (m) =>
+          m.outcome === 'W' &&
+          (m.battedFirst
+            ? m.card.ourScore.runs - m.card.theirScore.runs >= 50
+            : m.card.ourScore.wickets <= 2),
+      )
+
     default:
-      return knockouts.length > 0
+      return false
   }
 }
 
@@ -772,7 +827,10 @@ export function finishRun(
     difficulty: config.difficulty,
     score: seasonScore(all, format),
     objective: objective
-      ? { ...objective, met: objectiveMet(objective.title, run.group, run.knockouts, outcome) }
+      ? {
+          ...objective,
+          met: objectiveMet(objective.title, run.group, run.knockouts, outcome, run.standing),
+        }
       : undefined,
     pct:
       format === 'TEST'

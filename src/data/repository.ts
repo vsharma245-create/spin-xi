@@ -122,6 +122,17 @@ const fetchChallenges = async () =>
 
 /* ── Loading ───────────────────────────────────────────────────────────── */
 
+/**
+ * Which build of the archive is in memory.
+ *
+ * Stamped on every season recorded, because ratings are recomputed when the
+ * archive is rebuilt and a run played against the old numbers is not strictly
+ * comparable with one played against the new. Without the stamp that
+ * difference is invisible for ever afterwards.
+ */
+let loadedVersion: string | null = null
+export const datasetVersion = () => loadedVersion
+
 export type LoadSource = 'network' | 'cache'
 
 export interface LoadResult {
@@ -158,6 +169,7 @@ async function load(): Promise<LoadResult> {
   const serve = (c: Cached): LoadResult => {
     hydrate(c.rows)
     hydrateChallenges(c.challenges)
+    loadedVersion = c.version
     return { source: 'cache', ...counts(c.rows) }
   }
 
@@ -185,6 +197,7 @@ async function load(): Promise<LoadResult> {
 
   hydrate(rows)
   hydrateChallenges(challenges)
+  loadedVersion = version
   void writeCache({ version, rows, challenges })
   return { source: 'network', ...counts(rows) }
 }

@@ -1,4 +1,5 @@
 import { api, signIn } from './account'
+import { datasetVersion } from './repository'
 import { scoreOf, seasonIndex } from '../game/types'
 import type { Format, TournamentResult, TrophyRun } from '../game/types'
 
@@ -87,9 +88,65 @@ export interface Split {
  * score — which means the client can be trusted provisionally now and checked
  * properly later, without asking players to replay anything.
  */
+/* ── What happened, as opposed to what was achieved ────────────────────── */
+
+export type EventName =
+  | 'draft_started'
+  | 'draft_abandoned'
+  | 'draft_completed'
+  | 'season_simulated'
+  | 'account_claimed'
+  | 'handle_changed'
+
+/**
+ * Record something that happened.
+ *
+ * Deliberately unawaited and deliberately silent. Nothing the game shows
+ * depends on this landing, and a player whose draft dies because a telemetry
+ * write timed out has been very badly served. Failures are dropped rather than
+ * retried: a lost row costs one point on a chart.
+ */
+export function track(name: EventName, draftId?: string, detail: object = {}): void {
+  void signIn()
+    .then((account) =>
+      // The row names its own author and the policy checks that against the
+      // token, so the account has to be in hand before the write, not after.
+      api('events', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ player: account.id, name, draft_id: draftId ?? null, detail }),
+      }),
+    )
+    .catch(() => {
+      /* offline, signed out, or the table is not there yet */
+    })
+}
+
+/** Note that this player was here today, which is what retention is made of. */
+export function touch(): void {
+  void signIn()
+    .then((account) =>
+      api(`profiles?id=eq.${account.id}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ last_seen_at: new Date().toISOString() }),
+      }),
+    )
+    .catch(() => {
+      /* the column may not exist yet, and nothing on screen depends on it */
+    })
+}
+
 export async function saveResult(
   result: TournamentResult,
-  opts: { dailyKey?: string; seed?: number; years?: [number, number] | null; worldTeams?: boolean },
+  opts: {
+    dailyKey?: string
+    seed?: number
+    years?: [number, number] | null
+    worldTeams?: boolean
+    /** How long the draft took, from first spin to result. */
+    durationMs?: number | null
+  },
 ): Promise<void> {
   const account = await signIn()
   const row = {
@@ -117,6 +174,9 @@ export async function saveResult(
     team_name: result.teamName,
     seed: opts.seed ?? null,
     xi: result.slots.map((s) => s.player && { n: s.player.name, s: s.player.season, r: s.role }),
+    duration_ms: opts.durationMs ?? null,
+    // Which build of the ratings this season was played against.
+    dataset_version: datasetVersion(),
   }
 
   await api('results', {

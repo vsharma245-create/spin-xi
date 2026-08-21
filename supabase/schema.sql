@@ -57,7 +57,11 @@ create table players (
   id      text primary key,       -- Cricsheet registry identifier where one exists
   name    text not null,
   surname text not null,          -- shown where a scoreboard would abbreviate
-  nation  text not null
+  nation  text not null,
+  -- Year of birth, where Wikidata has one, so a card can say how old somebody
+  -- was in the season being drafted. Null is common and means unknown, never
+  -- zero: an age of nought is worse than no age at all.
+  born    smallint check (born between 1850 and 2100)
 );
 
 create index players_nation_idx on players (nation);
