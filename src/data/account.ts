@@ -334,16 +334,61 @@ async function establish(): Promise<Account> {
   throw new Error('Could not find a free handle.')
 }
 
-/** Rename yourself. The only thing about an account a player can change. */
-export async function rename(handle: string): Promise<Account> {
+/**
+ * What a handle is allowed to be.
+ *
+ * The length bound matches the check constraint on the column, so a name the
+ * player is allowed to type is a name the database will accept — the failure
+ * is explained here rather than arriving as a Postgres error. Runs of spaces
+ * are collapsed because two handles differing only by an invisible double
+ * space read as the same person on a ladder.
+ */
+export const HANDLE_MAX = 24
+const ALLOWED = /^[A-Za-z0-9 ._-]+$/
+
+export function tidyHandle(raw: string): string {
+  return raw.replace(/\s+/g, ' ').trim().slice(0, HANDLE_MAX)
+}
+
+/** Why this handle cannot be used, or null when it can. */
+export function handleProblem(raw: string): string | null {
+  const handle = tidyHandle(raw)
+  if (handle.length < 2) return 'Names need at least two characters.'
+  if (handle.length > HANDLE_MAX) return `Names stop at ${HANDLE_MAX} characters.`
+  if (!ALLOWED.test(handle)) return 'Letters, numbers, spaces, dots, hyphens and underscores only.'
+  return null
+}
+
+/**
+ * Rename yourself. The only thing about an account a player can change.
+ *
+ * The handle is stored against the account rather than the browser, so it
+ * survives signing in somewhere else — and because every ladder reads it by
+ * join rather than copying it at the time a season was played, a rename shows
+ * up on past results too.
+ */
+export async function rename(raw: string): Promise<Account> {
+  const problem = handleProblem(raw)
+  if (problem) throw new Error(problem)
+
   const s = await liveSession()
-  const [updated] = await api<Account[]>(`profiles?id=eq.${s.userId}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({ handle: handle.trim().slice(0, 24) }),
-  })
-  current = Promise.resolve(updated)
-  return updated
+  try {
+    const [updated] = await api<Account[]>(`profiles?id=eq.${s.userId}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ handle: tidyHandle(raw) }),
+    })
+    if (!updated) throw new Error('The rename did not save. Try again in a moment.')
+    current = Promise.resolve(updated)
+    return updated
+  } catch (err) {
+    // The handle column is unique, so somebody else holding the name is the
+    // one failure a player can actually do something about.
+    if (/duplicate key|23505/.test(String(err))) {
+      throw new Error('Somebody already plays under that name. Try another.')
+    }
+    throw err
+  }
 }
 
 /** Forget this device's account. Used by the reset in settings, and by tests. */

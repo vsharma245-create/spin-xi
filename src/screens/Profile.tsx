@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { useState } from 'react'
 import { Button, Divider, Screen, SectionLabel, StatCard } from '../components/ui'
 import { ACHIEVEMENTS } from '../data/leaderboard'
 import { bandForRating, levelProgressOf, ratingOf, titleForLevel } from '../game/types'
@@ -8,6 +9,7 @@ import type { Format } from '../game/types'
 import { useAsync } from '../data/useAsync'
 import { identity } from '../data/account'
 import { ClaimAccount } from '../components/ClaimAccount'
+import { HandleEditor } from '../components/HandleEditor'
 import { FORMAT_ORDER, TOURNAMENTS } from '../game/types'
 
 /**
@@ -81,6 +83,8 @@ function Breakdown({
 
 export default function Profile() {
   const stats = useAsync(() => loadStats(), [])
+  // Held here so a rename shows immediately, rather than after a refetch.
+  const [renamed, setRenamed] = useState<string | null>(null)
   const splits = useAsync(() => loadSplits(), [])
   const history = useAsync(() => loadHistory(20), [])
   const who = useAsync(() => identity(), [])
@@ -147,6 +151,8 @@ export default function Profile() {
     )
   }
 
+  const shown = renamed ?? p.handle
+
   const unlocked: Record<string, boolean> = {
     firstDraft: p.drafts >= 1,
     champion: p.trophies >= 1,
@@ -162,7 +168,7 @@ export default function Profile() {
       <div className="pt-2">
         <div className="flex items-center gap-3.5">
           <div className="relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-pitch/25 bg-pitch/[0.07]">
-            <span className="display text-[22px] text-pitch">{p.handle.slice(0, 2).toUpperCase()}</span>
+            <span className="display text-[22px] text-pitch">{shown.slice(0, 2).toUpperCase()}</span>
             {/* The level, worn on the badge — it is the one number that sums up
                 everything below it. */}
             <span className="absolute -bottom-2 -right-2 grid h-7 min-w-7 place-items-center rounded-full border-2 border-ink bg-pitch px-1 text-[12px] font-black text-ink">
@@ -170,7 +176,7 @@ export default function Profile() {
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="display truncate text-[30px] leading-none">{p.handle}</h1>
+            <HandleEditor handle={shown} onRenamed={setRenamed} />
             <div className="mt-1.5 flex items-center gap-2">
               <span className="rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-label text-cream-dim">
                 {titleForLevel(lvl.level)}
