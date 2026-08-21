@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { linkGoogle, signInWithGoogle } from '../data/account'
+import { linkGoogle, signInWithGoogle, takeAuthFailure } from '../data/account'
 import type { AuthFailure } from '../data/account'
 
 /** Google's mark, drawn rather than fetched — one less network request, and it
@@ -50,6 +50,20 @@ export function ClaimAccount({
    * button reading "Taking you to Google…" and permanently disabled. The page
    * is restored rather than reloaded, so nothing else resets it.
    */
+  /*
+   * Something that went wrong on the way back from Google, reported here
+   * because this is the only place the player can act on it. It used to reach
+   * a console warning and stop there, so a failed sign-in looked exactly like
+   * never having pressed the button.
+   */
+  useEffect(() => {
+    // Synchronising with an external system is exactly what this is: the slot
+    // holding the redirect outcome is filled before React mounts anything.
+    const failure = takeAuthFailure()
+    // oxlint-disable-next-line react/set-state-in-effect
+    if (failure) setError(failure.message)
+  }, [])
+
   useEffect(() => {
     const wake = () => setBusy(null)
     window.addEventListener('pageshow', wake)

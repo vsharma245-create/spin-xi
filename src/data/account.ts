@@ -226,6 +226,68 @@ export async function linkGoogle(returnTo: string = window.location.pathname): P
  * session to protect here, so an ordinary sign-in is right: Google identifies
  * them and Supabase returns the account that identity already belongs to.
  */
+/* ── Coming back from Google ───────────────────────────────────────────── */
+
+let lastFailure: AuthFailure | null = null
+
+/** Read and clear whatever went wrong on the way back, for showing once. */
+export function takeAuthFailure(): AuthFailure | null {
+  const failure = lastFailure
+  lastFailure = null
+  return failure
+}
+
+const RETRY_KEY = 'spinxi:already-linked'
+
+const remember = (key: string, value: string | null) => {
+  try {
+    if (value === null) sessionStorage.removeItem(key)
+    else sessionStorage.setItem(key, value)
+  } catch {
+    /* private mode; the guard is a nicety, not a correctness requirement */
+  }
+}
+
+const recall = (key: string) => {
+  try {
+    return sessionStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Finish the journey Google sent the player back from.
+ *
+ * The interesting case is a returning player pressing "Continue with Google".
+ * Linking cannot know in advance which Google account they will choose, so it
+ * only discovers the account is already attached to a record *after* they have
+ * chosen — and answers with a failure that, taken literally, means telling
+ * somebody the thing they asked for cannot be done, on the screen that exists
+ * to do it.
+ *
+ * They asked to get to their record. Take them there: sign in instead. Once
+ * only, so a genuinely broken configuration cannot bounce them between Google
+ * and here for ever.
+ */
+export function completeRedirect(): void {
+  const outcome = absorbRedirect()
+
+  if (outcome.signedIn) {
+    remember(RETRY_KEY, null)
+    return
+  }
+  if (!outcome.failed) return
+
+  if (outcome.failed.taken && !recall(RETRY_KEY)) {
+    remember(RETRY_KEY, '1')
+    signInWithGoogle(window.location.pathname)
+    return
+  }
+
+  lastFailure = outcome.failed
+}
+
 export function signInWithGoogle(returnTo: string = window.location.pathname): void {
   const back = `${window.location.origin}${returnTo}`
   window.location.href =
@@ -240,36 +302,60 @@ export function signInWithGoogle(returnTo: string = window.location.pathname): v
  * store it, and scrub the address bar so a copied link cannot carry somebody
  * else's session.
  */
-export function absorbRedirect(): boolean {
+export interface RedirectOutcome {
+  /** A session arrived and has been stored. */
+  signedIn: boolean
+  /** Google was reached but the round trip failed. */
+  failed: AuthFailure | null
+}
+
+function scrub() {
+  window.history.replaceState({}, '', window.location.pathname)
+}
+
+export function absorbRedirect(): RedirectOutcome {
   const hash = window.location.hash
   if (!hash.includes('access_token=')) {
-    // Supabase reports failures as query parameters rather than a fragment.
-    const failed = new URLSearchParams(window.location.search).get('error_description')
-    if (failed) {
-      window.history.replaceState({}, '', window.location.pathname)
-      throw new Error(failed)
+    /*
+     * A failed round trip comes back as error_code and error_description —
+     * in the fragment for this flow, though the same endpoint uses the query
+     * string elsewhere, so both are read. Only the query string was, which
+     * meant the one failure that actually happens in practice, coming back
+     * from Google with an identity that is already spoken for, arrived as a
+     * fragment nothing looked at and vanished without a word.
+     */
+    const params = new URLSearchParams(
+      hash.startsWith('#') ? hash.slice(1) : window.location.search.slice(1),
+    )
+    const query = new URLSearchParams(window.location.search)
+    const code = params.get('error_code') ?? query.get('error_code') ?? ''
+    const description = params.get('error_description') ?? query.get('error_description')
+    if (code || description) {
+      scrub()
+      return { signedIn: false, failed: readable({ error_code: code, msg: description ?? undefined }) }
     }
-    return false
+    return { signedIn: false, failed: null }
   }
 
   const parts = new URLSearchParams(hash.slice(1))
   const token = parts.get('access_token')
   const refresh = parts.get('refresh_token')
   const expiresIn = Number(parts.get('expires_in') ?? 3600)
-  if (!token || !refresh) return false
+  if (!token || !refresh) return { signedIn: false, failed: null }
 
   // The user id is in the token's payload; no round trip needed to read it.
   let userId = ''
   try {
     userId = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub
   } catch {
-    return false
+    return { signedIn: false, failed: null }
   }
 
   writeSession({ token, refresh, expires: Math.floor(Date.now() / 1000) + expiresIn, userId })
   current = null
+  pending = null
   window.history.replaceState({}, '', window.location.pathname + window.location.search)
-  return true
+  return { signedIn: true, failed: null }
 }
 
 /** Whether this account is still anonymous, and what it is signed in as. */

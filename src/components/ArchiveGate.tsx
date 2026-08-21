@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { absorbRedirect } from '../data/account'
+import { completeRedirect } from '../data/account'
 import { loadArchive } from '../data/repository'
 import { BallMark } from './icons'
 import { Button } from './ui'
@@ -26,13 +26,7 @@ export function ArchiveGate({ children }: { children: ReactNode }) {
      * to be taken before anything asks who the player is, or the first request
      * goes out as the old anonymous user — or as nobody at all.
      */
-    try {
-      absorbRedirect()
-    } catch (err) {
-      // Sign-in was refused or cancelled. Not fatal: the game still plays, the
-      // player simply stays anonymous, so it is reported and stepped over.
-      console.warn('Sign-in did not complete:', (err as Error).message)
-    }
+    completeRedirect()
     loadArchive().then(
       () => live && setState('ready'),
       (err: Error) => {
