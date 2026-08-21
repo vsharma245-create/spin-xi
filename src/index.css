@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body {
+    @apply bg-ink text-cream;
+    font-feature-settings: 'tnum' 1, 'ss01' 1;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  /* Numbers should always line up — this product is made of numbers. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: rgba(227, 165, 75, 0.3);
+    color: #f4f1e6;
+  }
+
+  /* Slim, unobtrusive scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 99px;
+  }
+  .no-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-bar {
+    scrollbar-width: none;
+  }
+}
+
+@layer components {
+  /* ── Type scale ─────────────────────────────────────────────── */
+  .label {
+    @apply text-[10px] font-bold uppercase tracking-label text-moss;
+  }
+  .label-lg {
+    @apply text-[11px] font-bold uppercase tracking-label text-moss;
+  }
+  .display {
+    @apply font-display font-black uppercase leading-[0.88] tracking-tight2;
+    /* Tight tracking eats the spaces in all-caps display type — put some back. */
+    word-spacing: 0.08em;
+  }
+  .stat-num {
+    @apply tnum font-display font-black leading-none tracking-tight2;
+  }
+
+  /* ── Surfaces ───────────────────────────────────────────────── */
+  .hairline {
+    @apply border border-white/[0.07];
+  }
+  .surface {
+    @apply hairline rounded-card bg-ink-700;
+  }
+  .surface-raised {
+    @apply hairline rounded-card bg-ink-800;
+  }
+
+  /* The dark-green "pitch" panel used for game surfaces */
+  .pitch-panel {
+    @apply rounded-card border border-pitch/[0.14] bg-turf-900;
+  }
+
+  /* Fine horizontal pitch-roller stripes, very subtle */
+  .pitch-stripes {
+    background-image: repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.014) 0px,
+      rgba(255, 255, 255, 0.014) 14px,
+      transparent 14px,
+      transparent 28px
+    );
+  }
+
+  /* Faint stitched-seam vertical rule, evokes a cricket ball seam */
+  .seam {
+    background-image: linear-gradient(
+      180deg,
+      transparent,
+      rgba(53, 208, 127, 0.35) 20%,
+      rgba(53, 208, 127, 0.35) 80%,
+      transparent
+    );
+  }
+}
+
+/* Safe-area padding for the mobile tab bar on notched devices */
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+.h-safe {
+  height: env(safe-area-inset-bottom);
+}

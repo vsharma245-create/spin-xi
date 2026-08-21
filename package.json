@@ -1,0 +1,41 @@
+{
+  "name": "spin-xi",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "seed": "node scripts/generate-seed.mjs",
+    "db:push": "node scripts/db-push.mjs",
+    "ingest": "node scripts/ingest-cricsheet.mjs",
+    "archive": "node scripts/build-archive.mjs",
+    "nations": "node scripts/fetch-nations.mjs",
+    "db:check": "node scripts/db-check.mjs",
+    "audit": "node scripts/audit.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "framer-motion": "^11.18.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.5",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "autoprefixer": "^10.5.4",
+    "esbuild": "^0.28.2",
+    "oxlint": "^1.75.0",
+    "pg": "^8.23.0",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.0"
+  }
+}

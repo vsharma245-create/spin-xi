@@ -1,0 +1,11 @@
+# Every path is served by the app, not by the host.
+#
+# The game routes in the browser, so /profile exists only once index.html has
+# loaded and React Router has read the URL. A static host knows nothing about
+# that: asked for /profile it looks for a file of that name, finds none, and
+# returns its own 404 before the app ever runs. Which means a refresh, or a
+# shared link to anything but the home page, breaks.
+#
+# 200 rather than 301: the URL must stay as the player typed it, or the router
+# has nothing to route on.
+/*    /index.html   200
