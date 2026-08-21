@@ -158,15 +158,22 @@ export async function api<T>(
  * which is true and useless: what they need to know is that their record is
  * safe and which button gets them to it.
  */
-function readable(body: { msg?: string; error_code?: string }): string {
+export interface AuthFailure extends Error {
+  /** Set when the Google account is already attached to some other record. */
+  taken?: boolean
+}
+
+function readable(body: { msg?: string; error_code?: string }): AuthFailure {
   const code = body.error_code ?? ''
   if (code.includes('identity_already_exists') || /already.*linked|already.*registered/i.test(body.msg ?? '')) {
-    return 'That Google account already has a record. Use "Already have a record? Sign in" to open it.'
+    const err: AuthFailure = new Error('That Google account already has a record.')
+    err.taken = true
+    return err
   }
   if (code.includes('manual_linking_disabled')) {
-    return 'Account linking is switched off for this project.'
+    return new Error('Account linking is switched off for this project.')
   }
-  return body.msg ?? 'Google sign-in could not be started. Try again in a moment.'
+  return new Error(body.msg ?? 'Google sign-in could not be started. Try again in a moment.')
 }
 
 /**
@@ -208,7 +215,7 @@ export async function linkGoogle(returnTo: string = window.location.pathname): P
     msg?: string
     error_code?: string
   }
-  if (!res.ok || !body.url) throw new Error(readable(body))
+  if (!res.ok || !body.url) throw readable(body)
   window.location.href = body.url
 }
 
@@ -268,10 +275,29 @@ export function absorbRedirect(): boolean {
 /** Whether this account is still anonymous, and what it is signed in as. */
 export async function identity(): Promise<{ anonymous: boolean; email: string | null }> {
   const s = await liveSession()
-  const user = await fetch(`${URL}/auth/v1/user`, {
+  const res = await fetch(`${URL}/auth/v1/user`, {
     headers: { apikey: KEY!, Authorization: `Bearer ${s.token}` },
-  }).then((r) => r.json())
-  return { anonymous: Boolean(user?.is_anonymous), email: user?.email ?? null }
+  })
+  if (!res.ok) throw new Error(`The account could not be read (${res.status}).`)
+  const user = (await res.json()) as {
+    email?: string
+    identities?: { provider?: string }[]
+  }
+
+  /*
+   * Judged by what is attached to the account, not by the is_anonymous flag.
+   *
+   * Linking a provider to an account that started out anonymous does not
+   * necessarily clear that flag, so trusting it showed a player who had just
+   * connected Google the "keep this record" prompt for ever — their name and
+   * seasons were plainly right there, and the game still called them a guest.
+   * An identity, or an address to reach them at, is the thing that actually
+   * decides whether this record can be recovered.
+   */
+  const linked = (user.identities ?? []).some((i) => i.provider && i.provider !== 'anonymous')
+  // Anonymous users carry an empty string rather than null.
+  const email = user.email || null
+  return { anonymous: !linked && !email, email }
 }
 
 /* ── The handle ────────────────────────────────────────────────────────── */

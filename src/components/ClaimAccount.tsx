@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { linkGoogle, signInWithGoogle } from '../data/account'
+import type { AuthFailure } from '../data/account'
 
 /** Google's mark, drawn rather than fetched — one less network request, and it
  *  renders identically offline and on every platform. */
@@ -40,15 +41,55 @@ export function ClaimAccount({
 }) {
   const [busy, setBusy] = useState<'claim' | 'signin' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** Set when Google is already spoken for and there are seasons here to lose. */
+  const [collision, setCollision] = useState(false)
+
+  /*
+   * Coming back from Google without finishing — cancelling, or the back
+   * button — restores this component exactly as it was left, which meant a
+   * button reading "Taking you to Google…" and permanently disabled. The page
+   * is restored rather than reloaded, so nothing else resets it.
+   */
+  useEffect(() => {
+    const wake = () => setBusy(null)
+    window.addEventListener('pageshow', wake)
+    window.addEventListener('focus', wake)
+    return () => {
+      window.removeEventListener('pageshow', wake)
+      window.removeEventListener('focus', wake)
+    }
+  }, [])
 
   const go = async (what: 'claim' | 'signin') => {
     setBusy(what)
     setError(null)
+    setCollision(false)
     try {
       if (what === 'claim') await linkGoogle(returnTo)
       else signInWithGoogle(returnTo)
     } catch (err) {
-      setError((err as Error).message)
+      const failure = err as AuthFailure
+      /*
+       * The Google account is already attached to a record. That is not an
+       * error from where the player is standing — it is the ordinary case of
+       * somebody returning on a new device, and the button they pressed is
+       * the one they were always going to press. So finish the job: open the
+       * record they meant.
+       *
+       * Unless there is something in this browser worth keeping. Signing in
+       * swaps to the other account, and seasons played here as a guest do not
+       * come with it, so that is a choice to put in front of them rather than
+       * make on their behalf.
+       */
+      if (failure.taken && drafts === 0) {
+        signInWithGoogle(returnTo)
+        return
+      }
+      if (failure.taken) {
+        setCollision(true)
+      } else {
+        setError(failure.message)
+      }
       setBusy(null)
     }
   }
@@ -92,6 +133,25 @@ export function ClaimAccount({
       >
         {busy === 'signin' ? 'Taking you to Google…' : 'Already have a record? Sign in'}
       </button>
+
+      {collision && (
+        <div className="mt-2.5 rounded-lg border border-leather/30 bg-leather/[0.08] px-2.5 py-2">
+          <p className="text-[10.5px] leading-snug text-cream-dim">
+            That Google account already has a record. Opening it will leave the{' '}
+            <span className="font-bold text-cream">
+              {drafts} season{drafts === 1 ? '' : 's'}
+            </span>{' '}
+            played in this browser behind — they stay with the guest account, which nothing else
+            can reach.
+          </p>
+          <button
+            onClick={() => go('signin')}
+            className="mt-2 w-full rounded-lg bg-cream px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-label text-ink hover:opacity-90"
+          >
+            Open my existing record
+          </button>
+        </div>
+      )}
 
       {error && <p className="mt-2 text-[10.5px] leading-snug text-leather">{error}</p>}
 
