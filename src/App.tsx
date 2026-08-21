@@ -9,9 +9,18 @@ import { Privacy, Terms } from './screens/Legal'
 import Play from './screens/Play'
 import Profile from './screens/Profile'
 
+const PLAYABLE = new Set(['/', '/play', '/daily', '/leaderboard', '/profile'])
+
 export default function App() {
   const location = useLocation()
-  const legal = location.pathname === '/privacy' || location.pathname === '/terms'
+  /*
+   * Only the game itself needs the squad archive. A policy page, or a wrong
+   * address, made the reader wait on a multi-megabyte download before showing
+   * them a paragraph of text — and a mistyped link spent that download to say
+   * the link was mistyped.
+   */
+  const path = location.pathname.replace(/\/+$/, '') || '/'
+  const needsArchive = PLAYABLE.has(path)
 
   return (
     <div className="min-h-dvh bg-ink">
@@ -25,15 +34,11 @@ export default function App() {
         }}
       />
       <div className="relative">
-        {legal ? (
-          /*
-           * The policies sit outside the gate. Somebody arriving from Google's
-           * consent screen or a store listing wants a page of text, not a
-           * multi-megabyte squad archive downloaded first.
-           */
+        {!needsArchive ? (
           <Routes location={location} key={location.pathname}>
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         ) : (
           <ArchiveGate>
@@ -44,7 +49,6 @@ export default function App() {
               <Route path="/daily" element={<Daily />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="*" element={<NotFound />} />
             </Routes>
             {/* The draft owns the bottom edge with its team-sheet rail. */}
             {location.pathname !== '/play' && <TabBar />}

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { Button, Divider, FeatureCard, Screen, SectionLabel } from '../components/ui'
 import { Logo } from '../components/Nav'
 import { datasetStats } from '../data/squads'
-import { TAKES } from '../data/leaderboard'
 import { FORMAT_ORDER, TOURNAMENTS } from '../game/types'
 import { todaysChallenge } from '../data/challenges'
 
@@ -129,7 +128,7 @@ export default function Home() {
             to="/leaderboard"
             glyph="≡"
             title="Leaderboard"
-            desc="Global, India and friends ladders."
+            desc="Every tournament keeps its own board, ranked on points."
           />
           <FeatureCard
             to="/profile"
@@ -178,31 +177,6 @@ export default function Home() {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* ── Community preview ── */}
-      <div className="mt-10">
-        <SectionLabel right={<span className="label">preview</span>}>cricket takes</SectionLabel>
-        <div className="grid gap-2 md:grid-cols-2">
-          {TAKES.map((t) => (
-            <div key={t.handle} className="surface px-3.5 py-3">
-              <div className="flex items-center gap-2">
-                <span className="grid h-6 w-6 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-[9px] font-black text-moss">
-                  {t.handle.slice(0, 2).toUpperCase()}
-                </span>
-                <span className="text-[11px] font-bold text-cream-dim">{t.handle}</span>
-              </div>
-              <p className="font-editorial mt-2 text-[16px] leading-snug text-cream">“{t.take}”</p>
-              <div className="mt-2.5 flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-moss">
-                <span>▲ {t.votes.toLocaleString()}</span>
-                <span>{t.comments} replies</span>
-                <span className="ml-auto rounded-md border border-white/10 px-1.5 py-0.5 text-pitch/70">
-                  prove it
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* ── Footer ── */}

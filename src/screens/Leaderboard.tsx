@@ -1,5 +1,4 @@
-import { motion } from 'framer-motion'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Screen, SectionLabel } from '../components/ui'
 import { dailyEntrants, loadLadder, loadStats } from '../data/records'
 import { useAsync } from '../data/useAsync'
@@ -8,8 +7,6 @@ import { todaysChallenge } from '../data/challenges'
 import { FORMAT_ORDER, levelFromPoints, SCORING, titleForLevel, TOURNAMENTS } from '../game/types'
 import type { Format } from '../game/types'
 
-const SCOPES = ['GLOBAL', 'INDIA', 'FRIENDS'] as const
-type Scope = (typeof SCOPES)[number]
 
 /**
  * Ladders, one per tournament.
@@ -21,7 +18,6 @@ type Scope = (typeof SCOPES)[number]
  */
 export default function Leaderboard() {
   const [format, setFormat] = useState<Format>('T20L')
-  const [scope, setScope] = useState<Scope>('GLOBAL')
   const daily = todaysChallenge()
 
   const t = TOURNAMENTS[format]
@@ -30,13 +26,7 @@ export default function Leaderboard() {
   const entrants = useAsync(() => dailyEntrants(daily.dateKey), [daily.dateKey])
   const mine = me.data
 
-  const rows = useMemo(() => {
-    const all = board.data ?? []
-    // The scope tabs are a filter over one board, not three different boards.
-    // Regional and friends ladders need data the game does not collect yet, so
-    // they show the same field until it does rather than pretending otherwise.
-    return all
-  }, [board.data])
+  const rows = board.data ?? []
 
   const isTest = format === 'TEST'
 
@@ -83,26 +73,6 @@ export default function Leaderboard() {
             </button>
           ))}
         </div>
-      </div>
-
-      {/* ── Scope ── */}
-      <div className="mt-3 flex gap-1 rounded-xl border border-white/[0.07] bg-ink-800 p-1">
-        {SCOPES.map((sc) => (
-          <button
-            key={sc}
-            onClick={() => setScope(sc)}
-            className="relative flex-1 rounded-lg px-3 py-2 text-[10.5px] font-bold uppercase tracking-label"
-          >
-            {scope === sc && (
-              <motion.div
-                layoutId="lb-scope"
-                className="absolute inset-0 rounded-lg bg-white/[0.07]"
-                transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              />
-            )}
-            <span className={`relative ${scope === sc ? 'text-cream' : 'text-moss'}`}>{sc}</span>
-          </button>
-        ))}
       </div>
 
       {/* ── Rows ── */}
@@ -215,9 +185,9 @@ export default function Leaderboard() {
           the ties a win column cannot.
           <br />
           <br />
-          Rival scores here are illustrative: this is a local prototype with no server behind it, so
-          only your own row is real. They are scored by the same formula, though, so the ordering is
-          honest.
+          Every row is a season somebody actually played. Results are stored with the seed and the
+          eleven that produced them, and the simulation is deterministic, so any run on this board
+          can be recomputed and checked.
         </p>
       </div>
     </Screen>
