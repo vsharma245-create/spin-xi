@@ -454,6 +454,80 @@ try {
     console.log(`  ${outsider === 0 ? 'ok  ' : 'FAIL'} somebody with no seat sees no picks (${outsider})`)
     if (outsider !== 0) bad++
 
+    /* ── Between rounds: every way it can go ── */
+    {
+      const room2 = (await db.query(`
+        insert into draft_rooms (code, host, seed, format, preset_id, rating_mode, difficulty,
+                                 seats, pick_seconds, status, started_at, round, ready_until)
+        values ('live02', '${a}', 7, 'T20L', 'BALANCED', 'SEASON', 'NORMAL', 2, 30,
+                'review', now(), 0, now() + interval '30 seconds')
+        returning id`)).rows[0].id
+      await db.exec(`
+        insert into draft_seats (room_id, seat, player) values
+          ('${room2}', 0, '${a}'), ('${room2}', 1, '${b}');
+      `)
+
+      // Saying yes before the window shuts.
+      await db.exec(`set request.jwt.claim.sub = '${a}'`)
+      const said = await db.query(`select draft_ready('${room2}') as r`)
+      console.log(`  ${Number(said.rows[0].r) === 1 ? 'ok  ' : 'FAIL'} a player can say yes to the next round`)
+      if (Number(said.rows[0].r) !== 1) bad++
+
+      // Twice is the same as once.
+      let twiceOk = true
+      try { await db.query(`select draft_ready('${room2}')`) } catch { twiceOk = false }
+      console.log(`  ${twiceOk ? 'ok  ' : 'FAIL'} saying yes twice is not an error`)
+      if (!twiceOk) bad++
+
+      // Advancing before the window is over changes nothing.
+      const early = await db.query(`select draft_advance('${room2}') as s`)
+      console.log(`  ${early.rows[0].s === 'review' ? 'ok  ' : 'FAIL'} the round cannot be forced early (${early.rows[0].s})`)
+      if (early.rows[0].s !== 'review') bad++
+
+      // Only one of two said yes, so the session ends rather than limping on.
+      await db.exec(`update draft_rooms set ready_until = now() - interval '1 second' where id = '${room2}'`)
+      const alone = await db.query(`select draft_advance('${room2}') as s`)
+      console.log(`  ${alone.rows[0].s === 'done' ? 'ok  ' : 'FAIL'} one player left alone ends the session (${alone.rows[0].s})`)
+      if (alone.rows[0].s !== 'done') bad++
+
+      // Too late to say yes to a round that has already resolved.
+      let refused = false
+      try { await db.query(`select draft_ready('${room2}')`) } catch { refused = true }
+      console.log(`  ${refused ? 'ok  ' : 'FAIL'} saying yes after the door shuts is refused`)
+      if (!refused) bad++
+
+      // And when both say yes, the next round actually starts.
+      const room3 = (await db.query(`
+        insert into draft_rooms (code, host, seed, format, preset_id, rating_mode, difficulty,
+                                 seats, pick_seconds, status, started_at, round, ready_until)
+        values ('live03', '${a}', 7, 'T20L', 'BALANCED', 'SEASON', 'NORMAL', 2, 30,
+                'review', now(), 0, now() + interval '30 seconds')
+        returning id`)).rows[0].id
+      await db.exec(`insert into draft_seats (room_id, seat, player) values
+                       ('${room3}', 0, '${a}'), ('${room3}', 1, '${b}');`)
+      await db.exec(`set request.jwt.claim.sub = '${a}'`)
+      await db.query(`select draft_ready('${room3}')`)
+      await db.exec(`set request.jwt.claim.sub = '${b}'`)
+      await db.query(`select draft_ready('${room3}')`)
+      await db.exec(`update draft_rooms set ready_until = now() - interval '1 second' where id = '${room3}'`)
+      const next = await db.query(`select draft_advance('${room3}') as s`)
+      const round = (await db.query(`select round, status from draft_rooms where id = '${room3}'`)).rows[0]
+      const started = next.rows[0].s === 'drafting' && Number(round.round) === 1
+      console.log(
+        `  ${started ? 'ok  ' : 'FAIL'} two willing players start round ${round.round} (${round.status})`,
+      )
+      if (!started) bad++
+
+      // A pick belonging to the old round is refused now.
+      let stale = false
+      try {
+        await db.exec(`insert into draft_picks (room_id, round, pick_no, seat, squad_id, player_id, slot)
+                       values ('${room3}', 0, 0, 0, 'sq', 'zz', 0)`)
+      } catch { stale = true }
+      console.log(`  ${stale ? 'ok  ' : 'FAIL'} a pick from the previous round is refused`)
+      if (!stale) bad++
+    }
+
     await db.exec(`set request.jwt.claim.sub = ''`)
   }
 

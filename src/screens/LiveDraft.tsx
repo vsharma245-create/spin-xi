@@ -4,8 +4,10 @@ import { Button, Screen, SectionLabel } from '../components/ui'
 import { PlayerCard } from '../components/PlayerCard'
 import { signIn } from '../data/account'
 import {
+  abandonRoom,
   begin,
   heartbeat,
+  leaveSeat,
   loadPicks,
   loadRoom,
   loadSeats,
@@ -44,6 +46,7 @@ export default function LiveDraft() {
   const [error, setError] = useState('')
   const [tick, setTick] = useState(0)
   const [taking, setTaking] = useState(false)
+  const [copied, setCopied] = useState(false)
   const botting = useRef(false)
 
   /* ── Getting in ── */
@@ -159,6 +162,26 @@ export default function LiveDraft() {
     })()
   }, [tick, left, room, config, squad, done, onTurn, pickNo, xis, taken, mySeat, refresh])
 
+  const copyCode = async () => {
+    await navigator.clipboard.writeText(room?.code ?? '').catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  /**
+   * Leaving.
+   *
+   * A player hands their seat to the bot, which keeps drafting — three people
+   * should not be held up by a fourth who has gone. The host calls the whole
+   * thing off instead, because a draft with no host is nobody's to start.
+   */
+  const quit = async () => {
+    if (!room) return
+    if (room.host === me) await abandonRoom(room.id)
+    else if (mySeat !== null) await leaveSeat(room.id, mySeat)
+    window.location.href = '/multiplayer'
+  }
+
   const take = async (playerId: string, slot: number) => {
     if (!room || !squad) return
     setTaking(true)
@@ -203,9 +226,28 @@ export default function LiveDraft() {
   }
 
   const sitting = seats.filter((s) => s.player).length
-  const link = `${window.location.origin}/d/${code}`
 
   /* ── Lobby ── */
+  if (room.status === 'abandoned') {
+    return (
+      <Screen>
+        <div className="grid min-h-[50vh] place-items-center px-6 text-center">
+          <div>
+            <div className="display text-[19px] text-leather">CALLED OFF</div>
+            <p className="mt-2 text-[12px] leading-relaxed text-moss">
+              The host ended this draft. Nothing from it was kept.
+            </p>
+            <div className="mx-auto mt-5 max-w-[220px]">
+              <Button to="/multiplayer" full>
+                Back to multiplayer
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Screen>
+    )
+  }
+
   if (room.status === 'lobby') {
     return (
       <Screen>
@@ -238,9 +280,20 @@ export default function LiveDraft() {
           </div>
         </div>
 
-        <div className="mt-5 rounded-card border border-white/[0.06] px-3.5 py-3">
-          <span className="label text-moss">send this to your mates</span>
-          <p className="mt-1 break-all text-[11.5px] text-cream-dim">{link}</p>
+        <div className="mt-5 rounded-card border border-willow/30 bg-willow/[0.06] px-3.5 py-4 text-center">
+          <span className="label text-willow">read this out</span>
+          <p className="stat-num mt-1 text-[38px] uppercase tracking-[0.28em] text-cream">
+            {room.code}
+          </p>
+          <button
+            onClick={() => void copyCode()}
+            className="mt-1 text-[10.5px] font-bold uppercase tracking-label text-moss underline-offset-2 hover:text-cream hover:underline"
+          >
+            {copied ? 'copied' : 'copy code'}
+          </button>
+          <p className="mt-2 text-[10px] leading-snug text-moss/70">
+            Your mates open Multiplayer and type it in. No link needed.
+          </p>
         </div>
 
         {room.host === me && (
@@ -253,6 +306,15 @@ export default function LiveDraft() {
             </p>
           </div>
         )}
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => void quit()}
+            className="text-[10.5px] font-bold uppercase tracking-label text-moss underline-offset-2 hover:text-leather hover:underline"
+          >
+            {room.host === me ? 'Call the draft off' : 'Leave this draft'}
+          </button>
+        </div>
       </Screen>
     )
   }
@@ -293,6 +355,15 @@ export default function LiveDraft() {
             </div>
           )
         })}
+      </div>
+
+      <div className="mt-3 text-center">
+        <button
+          onClick={() => void quit()}
+          className="text-[10px] font-bold uppercase tracking-label text-moss/70 underline-offset-2 hover:text-leather hover:underline"
+        >
+          {room.host === me ? 'Call it off' : 'Leave — the bot takes my seat'}
+        </button>
       </div>
 
       {done ? (

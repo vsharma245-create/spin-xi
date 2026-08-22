@@ -82,12 +82,18 @@ create table if not exists results (
    * runs afterwards. The reference to leagues is added with that table.
    */
   league_id uuid,
+  -- Set when the season came out of a live draft. Same reasoning as a league:
+  -- somebody else's room, somebody else's rules.
+  room_id uuid,
+  seat    smallint,
 
   created_at timestamptz not null default now()
 );
 
 -- Added after the first release, for databases created before leagues existed.
 alter table results add column if not exists league_id uuid;
+alter table results add column if not exists room_id uuid;
+alter table results add column if not exists seat smallint;
 
 -- Added after the first release: 'trophy' joined the modes, and a database
 -- that already exists keeps the constraint it was created with.
@@ -177,7 +183,7 @@ with runs as (
   -- Leagues are left out for the same reason they are left off the ladder:
   -- these splits sit beside a public rating, and a season played under
   -- somebody else's rules does not describe how you draft.
-  where mode <> 'trophy' and league_id is null
+  where mode <> 'trophy' and league_id is null and room_id is null
 )
 select player, 'format' as kind, format as key,
        count(*)::int as drafts,
@@ -237,7 +243,7 @@ from results r
 -- rather than silently ranking you against strangers who never agreed to
 -- those rules. Both still count toward a career, which is where the playing
 -- is recorded.
-where r.mode <> 'trophy' and r.league_id is null
+where r.mode <> 'trophy' and r.league_id is null and r.room_id is null
 order by r.player, r.format, r.points desc, r.created_at asc;
 
 -- The daily: one shared draw, so the fairest contest the game has.

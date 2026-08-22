@@ -28,7 +28,22 @@ create table if not exists draft_rooms (
   host uuid not null references profiles (id) on delete cascade,
 
   -- lobby: waiting for people. drafting: turns are running. done: XIs are full.
-  status text not null default 'lobby' check (status in ('lobby', 'drafting', 'done', 'abandoned')),
+  /*
+   * lobby → drafting → review → drafting → … until the host closes it.
+   *
+   * A room is a session rather than a single draft. When the XIs are full each
+   * seat plays its season, the four are set against each other, and everybody
+   * is asked whether they want another. Those who say so within the window
+   * draft again; those who do not are out, because three people should not
+   * wait on a fourth who has wandered off.
+   */
+  status text not null default 'lobby'
+    check (status in ('lobby', 'drafting', 'review', 'done', 'abandoned')),
+
+  -- Which draft of this session is running. Picks and seasons carry it.
+  round smallint not null default 0,
+  -- While in review: the moment the door shuts on the next round.
+  ready_until timestamptz,
 
   -- The draw. Every client derives the same sequence of squads from this.
   seed bigint not null,
@@ -62,6 +77,13 @@ create table if not exists draft_seats (
    */
   is_bot boolean not null default false,
 
+  /*
+   * The round this seat has said yes to. A seat that has not said yes to the
+   * round about to start is not in it — saying nothing is how somebody who
+   * has closed the tab looks, and the rest should not be held by them.
+   */
+  ready_round smallint not null default 0,
+
   last_seen_at timestamptz not null default now(),
   joined_at    timestamptz not null default now(),
 
@@ -73,7 +95,8 @@ create unique index if not exists draft_seats_one_each
 
 create table if not exists draft_picks (
   room_id  uuid not null references draft_rooms (id) on delete cascade,
-  -- 0-based, and dense: pick n is the (n+1)th pick of the room.
+  round    smallint not null default 0,
+  -- 0-based, and dense within its round.
   pick_no  smallint not null,
   seat     smallint not null,
 
@@ -85,14 +108,15 @@ create table if not exists draft_picks (
   made_by text not null default 'human' check (made_by in ('human', 'bot')),
   created_at timestamptz not null default now(),
 
-  primary key (room_id, pick_no)
+  primary key (room_id, round, pick_no)
 );
 
--- One player cannot be in two XIs: the pool is shared, which is the point.
+-- One player cannot be in two XIs in the same round: the pool is shared.
+drop index if exists draft_picks_one_player;
 create unique index if not exists draft_picks_one_player
-  on draft_picks (room_id, player_id);
+  on draft_picks (room_id, round, player_id);
 
-create index if not exists draft_picks_room_idx on draft_picks (room_id, pick_no);
+create index if not exists draft_picks_room_idx on draft_picks (room_id, round, pick_no);
 
 /* ── Turn order ────────────────────────────────────────────────────────── */
 
@@ -114,7 +138,8 @@ $$;
 create or replace function draft_deadline(r draft_rooms) returns timestamptz
 language sql stable as $$
   select coalesce(
-    (select max(p.created_at) from draft_picks p where p.room_id = r.id),
+    (select max(p.created_at) from draft_picks p
+      where p.room_id = r.id and p.round = r.round),
     r.started_at
   ) + make_interval(secs => r.pick_seconds)
 $$;
@@ -138,7 +163,12 @@ begin
   if not found then raise exception 'No such draft.'; end if;
   if r.status <> 'drafting' then raise exception 'That draft is not running.'; end if;
 
-  select count(*) into expected from draft_picks p where p.room_id = r.id;
+  if new.round <> r.round then
+    raise exception 'That draft has moved on to round %.', r.round;
+  end if;
+
+  select count(*) into expected from draft_picks p
+    where p.room_id = r.id and p.round = r.round;
   if new.pick_no <> expected then
     raise exception 'Out of turn: the draft is on pick %, not %.', expected, new.pick_no;
   end if;
@@ -150,13 +180,22 @@ begin
   select s.player into owner from draft_seats s
     where s.room_id = r.id and s.seat = new.seat;
 
-  overdue := now() > draft_deadline(r);
+  /*
+   * A seat anybody may play: its clock has run out, or whoever was in it has
+   * left and handed it to the bot. Waiting out a full turn for a seat that has
+   * announced it is empty only makes everybody else sit still.
+   */
+  overdue := now() > draft_deadline(r)
+             or exists (select 1 from draft_seats s
+                        where s.room_id = r.id and s.seat = new.seat and s.is_bot);
   if owner is distinct from auth.uid() and not overdue then
     raise exception 'It is not your turn.';
   end if;
 
   -- A pick made for somebody else, or after their clock, is the bot's.
   if owner is distinct from auth.uid() then new.made_by := 'bot'; end if;
+
+  if r.status = 'abandoned' then raise exception 'That draft was abandoned.'; end if;
 
   return new;
 end $$;
@@ -171,8 +210,14 @@ language plpgsql as $$
 declare r draft_rooms;
 begin
   select * into r from draft_rooms where id = new.room_id;
-  if (select count(*) from draft_picks p where p.room_id = r.id) >= r.seats * 11 then
-    update draft_rooms set status = 'done' where id = r.id;
+  if (select count(*) from draft_picks p where p.room_id = r.id and p.round = r.round)
+     >= (select count(*) from draft_seats s where s.room_id = r.id and s.player is not null
+                                                or s.is_bot) * 11
+  then
+    -- Full XIs mean the cricket, not the end. The seasons are played, then
+    -- everybody is asked whether they want another.
+    update draft_rooms set status = 'review', ready_until = now() + interval '30 seconds'
+      where id = r.id and status = 'drafting';
   end if;
   return null;
 end $$;
@@ -273,5 +318,100 @@ begin
     grant select, insert on draft_picks to anon, authenticated;
     grant execute on function draft_preview(text), draft_sit(text), in_draft(uuid),
                               snake_seat(int, int) to anon, authenticated;
+  end if;
+end $$;
+
+/* ── Seasons played out of a live draft ───────────────────────────────── */
+
+/*
+ * A live draft does not end when the XIs are full — that is when the cricket
+ * starts. Each seat plays its season and the four are set against each other,
+ * and the room stays open for another round until the host closes it.
+ */
+alter table results add column if not exists room_id uuid;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'results_room_id_fkey') then
+    alter table results add constraint results_room_id_fkey
+      foreign key (room_id) references draft_rooms (id) on delete set null;
+  end if;
+end $$;
+
+alter table results add column if not exists seat smallint;
+create index if not exists results_room_idx on results (room_id, points desc) where room_id is not null;
+
+drop view if exists draft_table;
+
+/** One row per seat per round, for everybody sitting in the room. */
+create view draft_table as
+select
+  r.room_id, r.seat, r.player, p.handle,
+  r.points, r.wins, r.losses, r.draws, r.runs, r.wickets, r.outcome, r.perfect,
+  r.team_name, r.created_at
+from results r
+  left join profiles p on p.id = r.player
+where r.room_id is not null
+  and in_draft(r.room_id);
+
+/* ── Between rounds ────────────────────────────────────────────────────── */
+
+/** Say you want the next one. Idempotent, and refused once the door shuts. */
+create or replace function draft_ready(room uuid) returns smallint
+language plpgsql security definer set search_path = public as $$
+declare r draft_rooms;
+begin
+  select * into r from draft_rooms where id = room;
+  if not found then raise exception 'No such draft.'; end if;
+  if r.status <> 'review' then raise exception 'There is nothing to say yes to yet.'; end if;
+  if now() > r.ready_until then raise exception 'Too late — that round has started without you.'; end if;
+
+  update draft_seats set ready_round = r.round + 1, is_bot = false, last_seen_at = now()
+    where room_id = room and player = auth.uid();
+  if not found then raise exception 'You are not sitting in this draft.'; end if;
+  return r.round + 1;
+end $$;
+
+/**
+ * Start the next round, or close the session.
+ *
+ * Callable by anyone in the room once the window has passed, for the same
+ * reason the bot is: waiting for a particular person to advance the game is
+ * how a game stops. Whoever gets there first does it and the rest are no-ops,
+ * because the guard is the room's own state.
+ *
+ * A session needs two. One person drafting against nobody is a solo game, and
+ * there is a whole rest of the app for that.
+ */
+create or replace function draft_advance(room uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare r draft_rooms; staying int;
+begin
+  select * into r from draft_rooms where id = room;
+  if not found then raise exception 'No such draft.'; end if;
+  if r.status <> 'review' then return r.status; end if;
+  if now() <= r.ready_until then return 'review'; end if;
+
+  -- Anybody who did not say yes is out. Their seat empties for the next round.
+  update draft_seats set player = null, is_bot = false, ready_round = 0
+    where room_id = room and (ready_round <> r.round + 1 or player is null);
+
+  select count(*) into staying from draft_seats
+    where room_id = room and player is not null;
+
+  if staying < 2 then
+    update draft_rooms set status = 'done', ready_until = null where id = room;
+    return 'done';
+  end if;
+
+  update draft_rooms
+    set round = r.round + 1, status = 'drafting', started_at = now(), ready_until = null
+    where id = room;
+  return 'drafting';
+end $$;
+
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    grant execute on function draft_ready(uuid), draft_advance(uuid) to anon, authenticated;
   end if;
 end $$;

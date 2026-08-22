@@ -133,6 +133,30 @@ export async function heartbeat(roomId: string, seat: number): Promise<void> {
   }).catch(() => {})
 }
 
+/**
+ * Hand your seat to the bot and go.
+ *
+ * The seat keeps drafting rather than emptying: three people should not be
+ * held up by a fourth who has left, and a draft with a hole in it is not a
+ * draft. Coming back re-takes the seat, because draft_sit clears the flag.
+ */
+export async function leaveSeat(roomId: string, seat: number): Promise<void> {
+  await api(`draft_seats?room_id=eq.${roomId}&seat=eq.${seat}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ is_bot: true }),
+  })
+}
+
+/** The host calls the whole thing off. */
+export async function abandonRoom(roomId: string): Promise<void> {
+  await api(`draft_rooms?id=eq.${roomId}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ status: 'abandoned' }),
+  })
+}
+
 export async function begin(roomId: string): Promise<void> {
   await api(`draft_rooms?id=eq.${roomId}&status=eq.lobby`, {
     method: 'PATCH',

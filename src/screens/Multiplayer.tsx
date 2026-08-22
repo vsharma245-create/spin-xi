@@ -49,6 +49,7 @@ export default function Multiplayer() {
   const [difficulty, setDifficulty] = useState<Difficulty>('NORMAL')
   const [scoring, setScoring] = useState<'latest' | 'best'>('best')
   const [minutes, setMinutes] = useState<number | null>(1440)
+  const [joinCode, setJoinCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [live, setLive] = useState(false)
   const [error, setError] = useState('')
@@ -137,6 +138,43 @@ export default function Multiplayer() {
           You get a link to send round. Empty seats draft for themselves, so nobody waits on
           somebody who never turns up.
         </p>
+      </div>
+
+      {/*
+       * A code, not a link.
+       *
+       * The host reads five characters into a group chat or across a room and
+       * everybody types them in. A link is one tap when it arrives by message
+       * and useless when it arrives out loud, and this is a game people play
+       * in the same room as often as not.
+       */}
+      <div className="mt-6 rounded-card border border-white/[0.08] bg-ink-700 px-3.5 py-3.5">
+        <span className="label text-moss">have a code?</span>
+        <form
+          className="mt-2 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const code = joinCode.trim().toLowerCase()
+            if (code) navigate(`/d/${code}`)
+          }}
+        >
+          <input
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 10))}
+            placeholder="ABCDE"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-ink-800 px-3.5 py-3 text-center text-[20px] font-black uppercase tracking-[0.3em] text-cream placeholder:text-moss/40 focus:border-pitch/50 focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={!joinCode.trim()}
+            className="shrink-0 rounded-xl bg-pitch px-4 text-[12px] font-extrabold uppercase tracking-label text-ink disabled:opacity-40"
+          >
+            Join
+          </button>
+        </form>
       </div>
 
       {(mine.data ?? []).length > 0 && (
