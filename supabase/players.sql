@@ -86,6 +86,7 @@ create table if not exists results (
   -- somebody else's room, somebody else's rules.
   room_id uuid,
   seat    smallint,
+  round   smallint,
 
   created_at timestamptz not null default now()
 );
@@ -94,6 +95,7 @@ create table if not exists results (
 alter table results add column if not exists league_id uuid;
 alter table results add column if not exists room_id uuid;
 alter table results add column if not exists seat smallint;
+alter table results add column if not exists round smallint;
 
 -- Added after the first release: 'trophy' joined the modes, and a database
 -- that already exists keeps the constraint it was created with.

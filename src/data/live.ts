@@ -7,7 +7,9 @@ export interface Room {
   id: string
   code: string
   host: string
-  status: 'lobby' | 'drafting' | 'done' | 'abandoned'
+  status: 'lobby' | 'drafting' | 'review' | 'done' | 'abandoned'
+  round: number
+  ready_until: string | null
   seed: number
   format: Format
   preset_id: string
@@ -26,11 +28,13 @@ export interface Seat {
   seat: number
   player: string | null
   is_bot: boolean
+  ready_round: number
   last_seen_at: string
 }
 
 export interface Pick {
   room_id: string
+  round: number
   pick_no: number
   seat: number
   squad_id: string
@@ -61,7 +65,7 @@ const makeCode = () =>
     .join('')
 
 export async function createRoom(
-  input: Omit<Room, 'id' | 'code' | 'host' | 'status' | 'seed' | 'started_at'>,
+  input: Omit<Room, 'id' | 'code' | 'host' | 'status' | 'seed' | 'started_at' | 'round' | 'ready_until'>,
 ): Promise<Room> {
   const account = await signIn()
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -175,6 +179,7 @@ export async function begin(roomId: string): Promise<void> {
  */
 export async function makePick(pick: {
   room_id: string
+  round: number
   pick_no: number
   seat: number
   squad_id: string
@@ -192,4 +197,63 @@ export async function makePick(pick: {
     if (/Out of turn|duplicate key|23505|not your turn|already/i.test(String(err))) return false
     throw err
   }
+}
+
+export interface DraftRow {
+  room_id: string
+  round: number
+  seat: number
+  player: string | null
+  handle: string | null
+  points: number
+  wins: number
+  losses: number
+  draws: number
+  runs: number
+  wickets: number
+  outcome: string
+  perfect: boolean
+  team_name: string
+}
+
+export const loadDraftTable = (roomId: string) =>
+  api<DraftRow[]>(`draft_table?select=*&room_id=eq.${roomId}&order=points.desc`)
+
+/** Say you want another draft. */
+export const sayReady = (roomId: string) =>
+  api<number>('rpc/draft_ready', { method: 'POST', body: JSON.stringify({ room: roomId }) })
+
+/** Move the session on once the window has passed. Anyone may; first one wins. */
+export const advance = (roomId: string) =>
+  api<string>('rpc/draft_advance', { method: 'POST', body: JSON.stringify({ room: roomId }) })
+
+/** Record a seat's season. */
+export async function saveSeatSeason(row: {
+  room_id: string
+  seat: number
+  player: string
+  round: number
+  format: string
+  preset_id: string
+  rating_mode: string
+  difficulty: string
+  world_teams: boolean
+  wins: number
+  losses: number
+  draws: number
+  runs: number
+  wickets: number
+  nrr: number
+  outcome: string
+  perfect: boolean
+  points: number
+  idx: number
+  team_name: string
+  seed: number
+}): Promise<void> {
+  await api('results', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ ...row, mode: 'quick' }),
+  }).catch(() => {})
 }

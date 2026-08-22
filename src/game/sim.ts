@@ -889,3 +889,37 @@ export function pitchSuitability(slots: Slot[], ratings: TeamRatings) {
   }
   return out
 }
+
+/**
+ * Play a whole season with nobody watching.
+ *
+ * The solo game walks a season a match at a time because that is the show. A
+ * live draft needs the other three XIs played out too, and nobody wants to sit
+ * through somebody else's fourteen games, so this runs the same functions in a
+ * loop and hands back the same result. Deterministic on the rng it is given,
+ * which is what lets any client play a bot's season and get what everyone else
+ * would have got.
+ */
+export function playSeason(
+  slots: Slot[],
+  captainId: string | null,
+  rand: () => number,
+  config: DraftConfig,
+  teamName = 'YOUR XI',
+): TournamentResult {
+  const run = startRun(
+    slots,
+    captainId,
+    rand,
+    config.format,
+    teamName,
+    config.ratingMode,
+    config.worldTeams,
+  )
+  while (run.qualified && run.knockouts.length < run.rounds.length) {
+    // No toss called: there is nobody at this keyboard to call it.
+    const m = playKnockout(run, config.format, rand, null)
+    if (m.outcome === 'L') break
+  }
+  return finishRun(run, slots, captainId, config, 'quick', null)
+}

@@ -8,15 +8,22 @@ import {
   begin,
   heartbeat,
   leaveSeat,
+  advance,
+  loadDraftTable,
   loadPicks,
   loadRoom,
   loadSeats,
   makePick,
   previewRoom,
+  sayReady,
+  saveSeatSeason,
   sit,
 } from '../data/live'
-import type { Pick, Room, Seat } from '../data/live'
+import type { DraftRow, Pick, Room, Seat } from '../data/live'
 import { botPick, drawOrder, seatSlots, secondsLeft, snakeSeat, totalPicks } from '../game/live'
+import { makeRng } from '../game/draft'
+import { playSeason } from '../game/sim'
+import { seasonIndex } from '../game/types'
 import { openSlotsFor, rulesFor } from '../game/draft'
 import { TOURNAMENTS } from '../game/types'
 import type { DraftConfig } from '../game/types'
@@ -47,6 +54,11 @@ export default function LiveDraft() {
   const [tick, setTick] = useState(0)
   const [taking, setTaking] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [table, setTable] = useState<DraftRow[]>([])
+  const [ready, setReady] = useState(false)
+  // Recomputed on each poll rather than during a render, which has to be pure.
+  const [readyLeft, setReadyLeft] = useState(0)
+  const played = useRef('')
   const botting = useRef(false)
 
   /* ── Getting in ── */
@@ -123,16 +135,17 @@ export default function LiveDraft() {
   )
 
   const order = useMemo(() => (config && room ? drawOrder(config, room.seed) : []), [config, room])
-  const pickNo = picks.length
+  const roundPicks = useMemo(() => picks.filter((p) => p.round === (room?.round ?? 0)), [picks, room?.round])
+  const pickNo = roundPicks.length
   const onTurn = room ? snakeSeat(pickNo, room.seats) : 0
   const done = room ? pickNo >= totalPicks(room.seats) : false
   const xis = useMemo(
-    () => (config && room ? seatSlots(config, order, picks, room.seats) : []),
-    [config, room, order, picks],
+    () => (config && room ? seatSlots(config, order, roundPicks, room.seats) : []),
+    [config, room, order, roundPicks],
   )
   const squad = order.length ? order[pickNo % order.length] : null
-  const taken = useMemo(() => new Set(picks.map((p) => p.player_id)), [picks])
-  const left = room ? secondsLeft(picks.at(-1)?.created_at ?? null, room.started_at, room.pick_seconds) : 0
+  const taken = useMemo(() => new Set(roundPicks.map((p) => p.player_id)), [roundPicks])
+  const left = room ? secondsLeft(roundPicks.at(-1)?.created_at ?? null, room.started_at, room.pick_seconds) : 0
   const mine = mySeat !== null && onTurn === mySeat && !done && room?.status === 'drafting'
 
   /* ── The bot ──
@@ -150,6 +163,7 @@ export default function LiveDraft() {
       if (choice) {
         await makePick({
           room_id: room.id,
+          round: room.round,
           pick_no: pickNo,
           seat: onTurn,
           squad_id: squad.id,
@@ -182,11 +196,79 @@ export default function LiveDraft() {
     window.location.href = '/multiplayer'
   }
 
+  /*
+   * The cricket.
+   *
+   * Every seat's XI is played out the moment the drafting stops. Each player
+   * runs their own, and the host runs the ones nobody is sitting in — somebody
+   * has to, and the host is the one person guaranteed to be there. The rng is
+   * seeded from the room, the round and the seat, so the same XI always plays
+   * the same season whoever presses the button.
+   */
+  useEffect(() => {
+    if (!room || !config || room.status !== 'review') return
+    const key = `${room.id}:${room.round}`
+    if (played.current === key) return
+    played.current = key
+    void (async () => {
+      const seatsToPlay = seats
+        .filter((s) => s.player === me || (room.host === me && (!s.player || s.is_bot)))
+        .map((s) => s.seat)
+      for (const seat of seatsToPlay) {
+        const slots = xis[seat]
+        if (!slots || slots.some((x) => !x.player)) continue
+        const rand = makeRng(room.seed + room.round * 7919 + seat * 104729)
+        const r = playSeason(slots, null, rand, config, `SEAT ${seat + 1}`)
+        await saveSeatSeason({
+          room_id: room.id,
+          seat,
+          round: room.round,
+          player: seats.find((x) => x.seat === seat)?.player ?? me!,
+          format: config.format,
+          preset_id: config.presetId,
+          rating_mode: config.ratingMode,
+          difficulty: config.difficulty,
+          world_teams: config.worldTeams,
+          wins: r.wins,
+          losses: r.losses,
+          draws: r.draws,
+          runs: r.score.runs,
+          wickets: r.score.wickets,
+          nrr: r.table.find((t) => t.us)?.nrr ?? 0,
+          outcome: r.outcome,
+          perfect: r.perfect,
+          points: r.score.points,
+          idx: seasonIndex(config.format, r.score.points),
+          team_name: r.teamName,
+          seed: room.seed + room.round * 7919 + seat * 104729,
+        })
+      }
+      setTable(await loadDraftTable(room.id).catch(() => []))
+    })()
+    // The room's identity and round are what decide this; the rest is read
+    // inside and would only re-run the seasons for no reason.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.status, room?.round, room?.id, seats, xis, config, me])
+
+  // Between rounds, keep the table fresh and let the door shut on time.
+  useEffect(() => {
+    if (!room || room.status !== 'review') return
+    void loadDraftTable(room.id).then(setTable).catch(() => {})
+    if (!room.ready_until) return
+    const left = Math.round((new Date(room.ready_until).getTime() - Date.now()) / 1000)
+    setReadyLeft(Math.max(0, left))
+    // Anybody may shut the door once it is time, for the same reason anybody
+    // may play an overdue seat: waiting on one particular person stops the game.
+    if (left <= 0) void advance(room.id).then(refresh).catch(() => {})
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, room?.status, room?.round, room?.ready_until, room?.id, refresh])
+
   const take = async (playerId: string, slot: number) => {
     if (!room || !squad) return
     setTaking(true)
     await makePick({
       room_id: room.id,
+      round: room.round,
       pick_no: pickNo,
       seat: onTurn,
       squad_id: squad.id,
@@ -366,11 +448,67 @@ export default function LiveDraft() {
         </button>
       </div>
 
-      {done ? (
+      {room.status === 'review' ? (
+        <div className="mt-6">
+          <SectionLabel right={<span className="label">round {room.round + 1}</span>}>
+            how the seasons went
+          </SectionLabel>
+          <div className="surface divide-y divide-white/[0.05] px-3.5">
+            {table.length === 0 && (
+              <div className="py-8 text-center text-[12px] text-moss">Playing the seasons…</div>
+            )}
+            {table
+              .filter((r) => r.round === room.round)
+              .map((r, i) => (
+                <div
+                  key={r.seat}
+                  className={`flex items-center gap-3 py-2.5 ${
+                    r.player === me ? '-mx-2 rounded-lg bg-pitch/[0.08] px-2' : ''
+                  }`}
+                >
+                  <span
+                    className={`tnum w-6 text-[12px] font-black ${i === 0 ? 'text-gold' : 'text-moss'}`}
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`truncate text-[13px] font-bold ${r.player === me ? 'text-pitch' : 'text-cream'}`}
+                    >
+                      {r.player === me ? 'You' : (r.handle ?? `Seat ${r.seat + 1}`)}
+                    </div>
+                    <div className="truncate text-[9.5px] font-semibold uppercase tracking-wider text-moss">
+                      {r.wins}–{r.losses} · {r.runs.toLocaleString()} runs · {r.wickets} wkts
+                    </div>
+                  </div>
+                  <span className="stat-num w-14 shrink-0 text-right text-[17px] text-cream">
+                    {r.points.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+          </div>
+
+          <div className="mt-5">
+            <Button
+              size="lg"
+              full
+              disabled={ready}
+              onClick={() => void sayReady(room.id).then(() => setReady(true)).catch(() => {})}
+            >
+              {ready ? 'Waiting for the others…' : 'Draft again →'}
+            </Button>
+            <p className="mt-2 text-center text-[10.5px] leading-snug text-moss">
+              {room.ready_until
+                ? `${readyLeft}s to decide. Anybody who does not is out of the session.`
+                : 'Deciding…'}
+            </p>
+          </div>
+        </div>
+      ) : done ? (
         <div className="mt-6 rounded-card border border-gold/30 bg-gold/[0.06] px-4 py-4 text-center">
-          <div className="display text-[17px] text-gold">EVERY XI IS FULL</div>
+          <div className="display text-[17px] text-gold">SESSION OVER</div>
           <p className="mt-1.5 text-[12px] text-cream-dim">
-            Forty-four picks out of one pool. Simulating each XI comes next.
+            Nobody left to draft against. Your seasons are on your record.
           </p>
         </div>
       ) : (

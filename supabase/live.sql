@@ -338,6 +338,7 @@ begin
 end $$;
 
 alter table results add column if not exists seat smallint;
+alter table results add column if not exists round smallint;
 create index if not exists results_room_idx on results (room_id, points desc) where room_id is not null;
 
 drop view if exists draft_table;
@@ -345,7 +346,7 @@ drop view if exists draft_table;
 /** One row per seat per round, for everybody sitting in the room. */
 create view draft_table as
 select
-  r.room_id, r.seat, r.player, p.handle,
+  r.room_id, r.seat, r.player, p.handle, r.round,
   r.points, r.wins, r.losses, r.draws, r.runs, r.wickets, r.outcome, r.perfect,
   r.team_name, r.created_at
 from results r
