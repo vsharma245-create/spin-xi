@@ -111,6 +111,38 @@ create table if not exists draft_picks (
   primary key (room_id, round, pick_no)
 );
 
+/* ── Catching up a room that already exists ───────────────────────────── */
+
+/*
+ * "create table if not exists" leaves a table that already exists exactly as
+ * it was, so every column added after the first release has to be added
+ * again here. The first push of this file created draft_picks without a
+ * round, and the second failed on an index that referenced one.
+ */
+alter table draft_rooms add column if not exists round smallint not null default 0;
+alter table draft_rooms add column if not exists ready_until timestamptz;
+alter table draft_rooms drop constraint if exists draft_rooms_status_check;
+alter table draft_rooms add constraint draft_rooms_status_check
+  check (status in ('lobby', 'drafting', 'review', 'done', 'abandoned'));
+
+alter table draft_seats add column if not exists ready_round smallint not null default 0;
+
+alter table draft_picks add column if not exists round smallint not null default 0;
+
+-- The key gained the round, which means replacing it rather than adding to it.
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint c
+      join pg_class t on t.oid = c.conrelid
+     where t.relname = 'draft_picks' and c.contype = 'p'
+       and (select count(*) from unnest(c.conkey)) = 2
+  ) then
+    alter table draft_picks drop constraint draft_picks_pkey;
+    alter table draft_picks add primary key (room_id, round, pick_no);
+  end if;
+end $$;
+
 -- One player cannot be in two XIs in the same round: the pool is shared.
 drop index if exists draft_picks_one_player;
 create unique index if not exists draft_picks_one_player

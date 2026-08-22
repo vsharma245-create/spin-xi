@@ -338,6 +338,28 @@ try {
   }
 
   /* ── The live draft ── */
+  /*
+   * Stand up the first release's shape first.
+   *
+   * A fresh database hides every migration bug: "create table if not exists"
+   * does nothing to a table that already exists, so the round column added
+   * later was never added to anybody's real database and the push failed on
+   * an index that wanted it. This is that database.
+   */
+  await db.exec(`
+    drop table if exists draft_picks cascade;
+    create table draft_picks (
+      room_id uuid not null, pick_no smallint not null, seat smallint not null,
+      squad_id text not null, player_id text not null, slot smallint not null,
+      made_by text not null default 'human', created_at timestamptz not null default now(),
+      primary key (room_id, pick_no)
+    );
+  `)
+
+  process.stdout.write('  live.sql over an older shape … ')
+  await db.exec(await file('live.sql'))
+  console.log('ok')
+
   process.stdout.write('  live.sql … ')
   await db.exec(await file('live.sql'))
   console.log('ok')
