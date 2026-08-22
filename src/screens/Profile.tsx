@@ -99,13 +99,20 @@ export default function Profile() {
     window.location.href = '/'
   }
   const splits = useAsync(() => loadSplits(), [])
+  /*
+   * Rated seasons only. The match rating below is built from these, and it is
+   * a public number — a league played under a mate's chosen settings should
+   * not move it in either direction.
+   */
+  const rated = useAsync(() => loadHistory(20, true), [])
+  // The career list shows everything that was actually played.
   const history = useAsync(() => loadHistory(20), [])
   const who = useAsync(() => identity(), [])
 
   const p = stats.data
   const lvl = levelProgressOf(p?.xp ?? 0)
   const rating = ratingOf(
-    (history.data ?? []).map((h) => ({
+    (rated.data ?? []).map((h) => ({
       format: h.format,
       points: h.points,
       index: h.idx,

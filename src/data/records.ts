@@ -258,11 +258,21 @@ export async function loadStats(): Promise<Stats> {
 }
 
 /** Recent seasons, newest first — what the competitive rating is built from. */
-export async function loadHistory(limit = 20): Promise<HistoryRow[]> {
+/**
+ * Recent seasons.
+ *
+ * `rated` asks only for the ones allowed to move a public number. A league
+ * season was played under rules somebody else chose — a mate who sets an easy
+ * league would lift your rating, and one who sets a brutal one would sink it,
+ * neither through anything you decided. They still earn experience, still show
+ * in a career, and still stand on their own league's table.
+ */
+export async function loadHistory(limit = 20, rated = false): Promise<HistoryRow[]> {
   const account = await signIn()
   return api<HistoryRow[]>(
     `results?select=id,format,mode,daily_key,points,idx,wins,losses,draws,outcome,perfect,team_name,created_at` +
-      `&player=eq.${account.id}&order=created_at.desc&limit=${limit}`,
+      `&player=eq.${account.id}${rated ? '&league_id=is.null' : ''}` +
+      `&order=created_at.desc&limit=${limit}`,
   )
 }
 

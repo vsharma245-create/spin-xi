@@ -269,6 +269,24 @@ try {
       `  ${Number(onPublic.rows[0].n) === 0 ? 'ok  ' : 'FAIL'} league seasons stay off the public ladder`,
     )
     if (Number(onPublic.rows[0].n) !== 0) bad++
+
+    // Nor on the splits that sit beside a public rating.
+    const inSplits = await db.query(
+      `select coalesce(sum(drafts), 0)::int as n from player_splits where player = '${mate}'`,
+    )
+    console.log(
+      `  ${Number(inSplits.rows[0].n) === 0 ? 'ok  ' : 'FAIL'} league seasons stay out of the rated splits`,
+    )
+    if (Number(inSplits.rows[0].n) !== 0) bad++
+
+    // But they still count toward a career, because they were played.
+    const career = await db.query(`select drafts, xp from player_stats where id = '${mate}'`)
+    const counted = Number(career.rows[0]?.drafts ?? 0) > 0
+    console.log(
+      `  ${counted ? 'ok  ' : 'FAIL'} league seasons still count toward a career ` +
+        `(${career.rows[0]?.drafts} drafts, ${career.rows[0]?.xp} xp)`,
+    )
+    if (!counted) bad++
   }
 
   /* ── The daily rotation, applied on its own ── */

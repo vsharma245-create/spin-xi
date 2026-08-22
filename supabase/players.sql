@@ -174,7 +174,10 @@ with runs as (
     player, format, rating_mode, difficulty,
     wins, losses, draws, runs, wickets, points, outcome, perfect, nrr
   from results
-  where mode <> 'trophy'
+  -- Leagues are left out for the same reason they are left off the ladder:
+  -- these splits sit beside a public rating, and a season played under
+  -- somebody else's rules does not describe how you draft.
+  where mode <> 'trophy' and league_id is null
 )
 select player, 'format' as kind, format as key,
        count(*)::int as drafts,
