@@ -4,6 +4,8 @@ import { Screen } from '../components/ui'
 import { todaysChallenge } from '../data/challenges'
 import { makeRng, newDraft } from '../game/draft'
 import { loadDaily, saveResult, track } from '../data/records'
+import { loadLeague, openLeague } from '../data/leagues'
+import type { League } from '../data/leagues'
 import type { DraftConfig, DraftState, Format, TournamentResult } from '../game/types'
 import ChampionsTrophy from './ChampionsTrophy'
 import DraftBoard from './DraftBoard'
@@ -32,6 +34,7 @@ export default function Play() {
   const navigate = useNavigate()
 
   const isDaily = params.get('mode') === 'daily'
+  const leagueCode = params.get('league')
   const formatParam = params.get('format') as Format | null
   const daily = useMemo(() => todaysChallenge(), [])
 
@@ -93,6 +96,64 @@ export default function Play() {
   // Kept so the season can be recorded with the seed that produced it: the
   // simulation is deterministic, so seed plus XI is enough to replay and check.
   const [seed, setSeed] = useState<number | null>(null)
+
+  /*
+   * A league's rules are not a suggestion.
+   *
+   * They are fetched rather than passed through the URL, and the setup screen
+   * is skipped entirely: there is nothing here for the player to choose, and
+   * offering them the controls would only invite a season the database is
+   * going to refuse.
+   */
+  const [league, setLeague] = useState<League | null>(null)
+  useEffect(() => {
+    if (!leagueCode) return
+    let live = true
+    void loadLeague(leagueCode)
+      .then((l) => {
+        if (!live || !l) return
+        setLeague(l)
+        beginDraft(
+          {
+            format: l.format,
+            scope: 'ALL',
+            teamKey: null,
+            years: l.from_year && l.to_year ? [l.from_year, l.to_year] : null,
+            presetId: l.preset_id,
+            ratingMode: l.rating_mode,
+            hideRatings: l.difficulty === 'HARD',
+            difficulty: l.difficulty,
+            liveToss: true,
+            worldTeams: l.world_teams,
+            overseasCap: !l.world_teams,
+            teamName: 'YOUR XI',
+          },
+          'quick',
+        )
+        setState(
+          newDraft('quick', {
+            format: l.format,
+            scope: 'ALL',
+            teamKey: null,
+            years: l.from_year && l.to_year ? [l.from_year, l.to_year] : null,
+            presetId: l.preset_id,
+            ratingMode: l.rating_mode,
+            hideRatings: l.difficulty === 'HARD',
+            difficulty: l.difficulty,
+            liveToss: true,
+            worldTeams: l.world_teams,
+            overseasCap: !l.world_teams,
+            teamName: 'YOUR XI',
+          }),
+        )
+        setPhase('draft')
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [leagueCode])
 
   /*
    * A daily draft is already under way when this screen mounts — its state is
@@ -162,7 +223,13 @@ export default function Play() {
       years: state?.config.years ?? null,
       worldTeams: state?.config.worldTeams ?? true,
       durationMs: took,
-    }).catch(() => {
+      leagueId: league?.id ?? null,
+    })
+      .then(() => {
+        // The league opens to everyone else the moment its host has a season
+        // in it, which is what stops them playing against a known target.
+        if (league) return openLeague(league.id)
+      }).catch(() => {
       /* Offline, or signed out. The local copy stands and the ladder misses
          one row — worth far less than blocking the result screen on a POST. */
     })

@@ -111,6 +111,13 @@ export default function Home() {
             desc="Spin, pick, build. Three minutes to a full XI."
           />
           <FeatureCard
+            to="/multiplayer"
+            glyph="⚇"
+            title="Play with mates"
+            desc="Set the rules once, send a link, best XI wins."
+            tag="New"
+          />
+          <FeatureCard
             to="/daily"
             glyph="◐"
             title="Daily challenge"

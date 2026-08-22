@@ -8,8 +8,10 @@ import Leaderboard from './screens/Leaderboard'
 import { Privacy, Terms } from './screens/Legal'
 import Play from './screens/Play'
 import Profile from './screens/Profile'
+import Multiplayer from './screens/Multiplayer'
+import LeaguePage from './screens/LeaguePage'
 
-const PLAYABLE = new Set(['/', '/play', '/daily', '/leaderboard', '/profile'])
+const PLAYABLE = new Set(['/', '/play', '/daily', '/leaderboard', '/profile', '/multiplayer'])
 
 export default function App() {
   const location = useLocation()
@@ -20,7 +22,8 @@ export default function App() {
    * the link was mistyped.
    */
   const path = location.pathname.replace(/\/+$/, '') || '/'
-  const needsArchive = PLAYABLE.has(path)
+  // A league page is the game too: it shows squads, formats and seasons.
+  const needsArchive = PLAYABLE.has(path) || path.startsWith('/l/')
 
   return (
     <div className="min-h-dvh bg-ink">
@@ -49,6 +52,8 @@ export default function App() {
               <Route path="/daily" element={<Daily />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/multiplayer" element={<Multiplayer />} />
+              <Route path="/l/:code" element={<LeaguePage />} />
             </Routes>
             {/* The draft owns the bottom edge with its team-sheet rail. */}
             {location.pathname !== '/play' && <TabBar />}

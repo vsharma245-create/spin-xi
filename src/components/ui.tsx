@@ -285,3 +285,40 @@ export function Explainer({ title, children }: { title: string; children: ReactN
     </div>
   )
 }
+
+/* ── Choosing ────────────────────────────────────────────────────────────── */
+
+/** A pickable card. Shared by the draft setup and the league setup, which
+    are the same act — settling the rules before anybody plays. */
+export function Option({
+  active,
+  disabled,
+  onClick,
+  children,
+  note,
+}: {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+  note?: string
+}) {
+  return (
+    <motion.button
+      type="button"
+      whileTap={disabled ? undefined : { scale: 0.97 }}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={`relative rounded-xl border px-3 py-2.5 text-left transition-colors ${
+        disabled
+          ? 'cursor-not-allowed border-white/[0.05] bg-ink-800 opacity-40'
+          : active
+            ? 'border-pitch/55 bg-pitch/[0.08] shadow-[0_0_0_1px_rgba(53,208,127,0.25)]'
+            : 'border-white/[0.08] bg-ink-700 hover:border-white/20'
+      }`}
+    >
+      {children}
+      {note && <div className="mt-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-moss">{note}</div>}
+    </motion.button>
+  )
+}

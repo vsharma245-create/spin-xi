@@ -146,6 +146,8 @@ export async function saveResult(
     worldTeams?: boolean
     /** How long the draft took, from first spin to result. */
     durationMs?: number | null
+    /** Set when the season is an entry in a league. */
+    leagueId?: string | null
   },
 ): Promise<void> {
   const account = await signIn()
@@ -175,6 +177,7 @@ export async function saveResult(
     seed: opts.seed ?? null,
     xi: result.slots.map((s) => s.player && { n: s.player.name, s: s.player.season, r: s.role }),
     duration_ms: opts.durationMs ?? null,
+    league_id: opts.leagueId ?? null,
     // Which build of the ratings this season was played against.
     dataset_version: datasetVersion(),
   }
