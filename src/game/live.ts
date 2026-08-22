@@ -1,4 +1,4 @@
-import { buildSlots, makeRng, openSlotsFor, poolFor, rulesFor } from './draft'
+import { buildSlots, makeRng, openSlotsFor, poolFor, rulesFor, squadHasPlaceable } from './draft'
 import { XI_SIZE } from './types'
 import type { DraftConfig, PlayerSeason, Slot, Squad } from './types'
 
@@ -38,19 +38,48 @@ export function drawOrder(config: DraftConfig, seed: number): Squad[] {
   return pool
 }
 
-export const squadForPick = (order: Squad[], pickNo: number): Squad | null =>
-  order[pickNo % order.length] ?? null
+/**
+ * The squad on offer for a pick, for the seat whose turn it is.
+ *
+ * Walking straight down the order is not enough. A seat with two slots left
+ * can be shown a side that fits neither, and because the order is fixed by the
+ * seed there is no next spin — the pick cannot be made by the player, cannot
+ * be made by the bot, and the draft stops dead. Seen exactly that way: pick
+ * 20, clock at zero, every card reading "no eligible slot".
+ *
+ * So the order is walked until it reaches a side that can actually fill
+ * something. Which squad that is depends only on the order and the picks
+ * already made, so every client still lands on the same one.
+ */
+export function squadForPick(
+  order: Squad[],
+  pickNo: number,
+  slots?: Slot[],
+  config?: DraftConfig,
+): Squad | null {
+  if (!order.length) return null
+  if (!slots || !config) return order[pickNo % order.length] ?? null
+  const rules = rulesFor(config)
+  for (let i = 0; i < order.length; i++) {
+    const squad = order[(pickNo + i) % order.length]
+    if (squadHasPlaceable(squad, slots, rules)) return squad
+  }
+  return null
+}
 
 /** Rebuild every seat's XI from the picks so far. */
 export function seatSlots(
   config: DraftConfig,
   order: Squad[],
-  picks: { pick_no: number; seat: number; player_id: string; slot: number }[],
+  picks: { pick_no: number; seat: number; player_id: string; slot: number; squad_id: string }[],
   seats: number,
 ): Slot[][] {
   const xis = Array.from({ length: seats }, () => buildSlots(config.presetId))
+  // Resolved by the squad the pick was actually made from, which the row
+  // records, rather than by recomputing a draw that has since moved on.
+  const byId = new Map(order.map((s) => [s.id, s]))
   for (const p of [...picks].sort((a, b) => a.pick_no - b.pick_no)) {
-    const squad = squadForPick(order, p.pick_no)
+    const squad = byId.get(p.squad_id)
     const player = squad?.players.find((x) => x.playerId === p.player_id)
     if (!player) continue
     const slots = xis[p.seat]

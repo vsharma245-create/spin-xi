@@ -20,7 +20,15 @@ import {
   sit,
 } from '../data/live'
 import type { DraftRow, Pick, Room, Seat } from '../data/live'
-import { botPick, drawOrder, seatSlots, secondsLeft, snakeSeat, totalPicks } from '../game/live'
+import {
+  botPick,
+  drawOrder,
+  seatSlots,
+  secondsLeft,
+  snakeSeat,
+  squadForPick,
+  totalPicks,
+} from '../game/live'
 import { makeRng } from '../game/draft'
 import { playSeason } from '../game/sim'
 import { seasonIndex } from '../game/types'
@@ -143,7 +151,9 @@ export default function LiveDraft() {
     () => (config && room ? seatSlots(config, order, roundPicks, room.seats) : []),
     [config, room, order, roundPicks],
   )
-  const squad = order.length ? order[pickNo % order.length] : null
+  // For the seat on turn, and skipping any side that cannot fill one of its
+  // remaining slots — otherwise a draft can reach a pick nobody can make.
+  const squad = config ? squadForPick(order, pickNo, xis[onTurn], config) : null
   const taken = useMemo(() => new Set(roundPicks.map((p) => p.player_id)), [roundPicks])
   const left = room ? secondsLeft(roundPicks.at(-1)?.created_at ?? null, room.started_at, room.pick_seconds) : 0
   const mine = mySeat !== null && onTurn === mySeat && !done && room?.status === 'drafting'
