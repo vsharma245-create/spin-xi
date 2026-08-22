@@ -39,7 +39,7 @@ function checkMatch(m: MatchResult, format: Format) {
   ]) {
     const batted = side.bat.filter((b) => !b.dnb)
     const runs = batted.reduce((a, b) => a + b.runs, 0)
-    const balls = batted.reduce((a, b) => a + b.balls, 0)
+
     const outs = batted.filter((b) => b.out).length
 
     if (runs + side.extras !== side.score.runs)
