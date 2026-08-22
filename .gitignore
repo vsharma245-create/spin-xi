@@ -33,3 +33,4 @@ dist-ssr
 # Bundled by npm run live:check
 .live-probe.mjs
 .card-probe.mjs
+.row-probe.mjs

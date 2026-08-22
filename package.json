@@ -15,10 +15,12 @@
     "archive": "node scripts/build-archive.mjs",
     "challenges": "node scripts/build-challenges.mjs",
     "nations": "node scripts/fetch-nations.mjs",
+    "bowling": "node scripts/fetch-bowling.mjs",
     "db:check": "node scripts/db-check.mjs",
     "live:check": "esbuild scripts/live-probe.ts --bundle --platform=node --format=esm --outfile=.live-probe.mjs --external:@electric-sql/pglite --log-level=error && node .live-probe.mjs; rm -f .live-probe.mjs",
     "cards:check": "esbuild scripts/card-probe.ts --bundle --platform=node --format=esm --outfile=.card-probe.mjs --external:@electric-sql/pglite --log-level=error && node .card-probe.mjs; rm -f .card-probe.mjs",
-    "audit": "node scripts/audit.mjs"
+    "audit": "node scripts/audit.mjs",
+    "rows:check": "esbuild scripts/row-probe.ts --bundle --platform=node --format=esm --outfile=.row-probe.mjs --external:@electric-sql/pglite --log-level=error && node .row-probe.mjs; rm -f .row-probe.mjs"
   },
   "dependencies": {
     "framer-motion": "^11.18.2",

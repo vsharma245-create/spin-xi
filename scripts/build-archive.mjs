@@ -299,8 +299,34 @@ for (const r of rows) {
   bowlingTally.set(r.id, tally)
 }
 
+/*
+ * What each bowler actually bowled, where anybody has written it down.
+ *
+ * Built by scripts/fetch-bowling.mjs: Cricsheet's identifier gives a Cricinfo
+ * key, Wikidata turns that into an English Wikipedia article, and the article
+ * states the style in words. Cricsheet has no such field of its own — its
+ * register is identifiers and its match data is deliveries — so this is the
+ * nearest thing to being told rather than inferring.
+ *
+ * The middle-over reading stays as the fallback. It is a proxy and it is
+ * wrong at the edges, which is the whole reason for this file.
+ */
+let STATED_TYPE = {}
+try {
+  STATED_TYPE = JSON.parse(await readFile(join(ROOT, 'data/bowling.json'), 'utf8')).players
+  console.log(`  ${Object.keys(STATED_TYPE).length} bowling styles read from their own articles`)
+} catch {
+  console.log('  ! no data/bowling.json — run `npm run bowling` to type bowlers from source')
+}
+let stated = 0
+
 /** Null when there is not enough bowling to say, leaving the season's own guess. */
 function bowlingType(id) {
+  const said = STATED_TYPE[id]
+  if (said) {
+    stated++
+    return said.type
+  }
   const t = bowlingTally.get(id)
   if (!t) return null
   const [mid, balls] =
@@ -353,8 +379,22 @@ const INTL_COMPS = new Set(['t20s', 'odis', 'tests'])
  * however many catches they hold. Catches only rank the men who have already
  * proved they keep.
  */
-const EVER_KEPT = new Set()
-for (const r of rows) if (r.stats.stumpings > 0) EVER_KEPT.add(r.id)
+/*
+ * How much of a keeper somebody is, over a whole career.
+ *
+ * "Has ever kept" is too blunt. Ranking those players by their catches in one
+ * season picks the best pair of hands rather than the specialist: Bangladesh's
+ * 2019 T20 side handed the gloves to Mahmudullah, who has kept perhaps twice,
+ * while Mushfiqur Rahim — one of the format's busiest keepers — stood in the
+ * same squad as a batter. Stumpings across a career separate the two, because
+ * only a keeper standing up makes them, and a specialist makes many.
+ */
+const KEPT_CAREER = new Map()
+for (const r of rows) {
+  if (!r.stats.stumpings) continue
+  KEPT_CAREER.set(r.id, (KEPT_CAREER.get(r.id) ?? 0) + r.stats.stumpings)
+}
+const EVER_KEPT = new Set(KEPT_CAREER.keys())
 
 const KEEPER_GLOVES = new Map()
 {
@@ -386,11 +426,15 @@ const KEEPER_GLOVES = new Map()
     // Kept this season, then kept at some point in their career, and only
     // then — for a squad where nobody ever kept — the best pair of hands.
     const stumpedHere = pool.filter((r) => r.stats.stumpings > 0)
-    const careerKeepers = pool.filter((r) => EVER_KEPT.has(r.id))
+    // Among career keepers, the one who has kept most, then the one who took
+    // most this season. Catches alone put the best fielder behind the stumps.
+    const careerKeepers = pool
+      .filter((r) => EVER_KEPT.has(r.id))
+      .sort((a, b) => (KEPT_CAREER.get(b.id) ?? 0) - (KEPT_CAREER.get(a.id) ?? 0))
     const scored = stumpedHere.length
       ? rank(stumpedHere, false)
       : careerKeepers.length
-        ? rank(careerKeepers, false)
+        ? careerKeepers.map((r) => ({ r, score: KEPT_CAREER.get(r.id) ?? 0 }))
         : rank(pool, true)
 
     if (scored.length) KEEPER_GLOVES.set(squadId, scored[0].r.id)
@@ -517,7 +561,7 @@ for (const r of rows) {
 
 console.log(`  ${upgraded} scorecard names upgraded to full names`)
 console.log(`  ${skippedMinor} rows dropped for sides outside the recognised nations`)
-console.log(`  ${retyped} seasons re-typed to the bowler's career pace/spin reading`)
+console.log(`  ${retyped} seasons re-typed — ${stated} of them from a stated style, the rest from the middle-over reading`)
 console.log(`  ${demoted} all-rounders who never bowled a spell returned to batting`)
 console.log(`  ${gloved} players given the gloves so every squad has a keeper`)
 {
