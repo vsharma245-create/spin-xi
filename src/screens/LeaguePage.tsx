@@ -157,7 +157,7 @@ export default function LeaguePage() {
           ) : (
             <div className="mt-6 grid grid-cols-2 gap-2">
               <Button onClick={() => navigate(`/play?league=${code}`)} full>
-                {rows.some((r) => r.player === mine) ? 'Play again' : 'Play your season'}
+                {rows.some((r) => r.player === mine) ? 'Play again' : 'Play'}
               </Button>
               <Button variant="ghost" onClick={() => void share()} full>
                 {copied ? 'Link copied' : 'Share link'}
@@ -167,9 +167,22 @@ export default function LeaguePage() {
         </>
       )}
 
+      {/*
+       * A league's table is readable only by its members, so an invitee gets
+       * an empty one — and an empty table says "nobody has played yet", which
+       * is a lie the moment the host has. It is exactly the wrong thing to
+       * tell somebody deciding whether to join. They are told how many are
+       * playing instead, which the preview does know.
+       */}
       <div className="mt-7">
         <SectionLabel
-          right={<span className="label">{rows.length} played</span>}
+          right={
+            <span className="label">
+              {inIt
+                ? `${rows.length} played`
+                : `${'players' in rules ? rules.players : 0} in`}
+            </span>
+          }
         >
           table
         </SectionLabel>
@@ -177,7 +190,13 @@ export default function LeaguePage() {
           {table.loading && (
             <div className="py-8 text-center text-[12px] text-moss">Reading the table…</div>
           )}
-          {!table.loading && rows.length === 0 && (
+          {!inIt && (
+            <div className="py-8 text-center">
+              <p className="text-[12.5px] text-cream-dim">The table is for players.</p>
+              <p className="mt-1 text-[11px] text-moss">Join to see how everyone is doing.</p>
+            </div>
+          )}
+          {inIt && !table.loading && rows.length === 0 && (
             <div className="py-8 text-center">
               <p className="text-[12.5px] text-cream-dim">Nobody has played yet.</p>
               <p className="mt-1 text-[11px] text-moss">Be the first and set the mark.</p>
