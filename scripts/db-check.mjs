@@ -624,6 +624,14 @@ try {
       console.log(`  ${alone.rows[0].s === 'done' ? 'ok  ' : 'FAIL'} one player left alone ends the session (${alone.rows[0].s})`)
       if (alone.rows[0].s !== 'done') bad++
 
+      // A seat is what grants sight of the room, so ending a session must not
+      // clear them — or the final table vanishes for the people who played it.
+      const kept = (await db.query(
+        `select count(*)::int as n from draft_seats where room_id = '${room2}' and player is not null`,
+      )).rows[0].n
+      console.log(`  ${Number(kept) === 2 ? 'ok  ' : 'FAIL'} ending a session leaves everybody able to see it (${kept})`)
+      if (Number(kept) !== 2) bad++
+
       // Too late to say yes to a round that has already resolved.
       let refused = false
       try { await db.query(`select draft_ready('${room2}')`) } catch { refused = true }

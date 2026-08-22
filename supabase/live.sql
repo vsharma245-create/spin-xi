@@ -435,17 +435,25 @@ begin
   if r.status <> 'review' then return r.status; end if;
   if now() <= r.ready_until then return 'review'; end if;
 
-  -- Anybody who did not say yes is out. Their seat empties for the next round.
-  update draft_seats set player = null, is_bot = false, ready_round = 0
-    where room_id = room and (ready_round <> r.round + 1 or player is null);
-
   select count(*) into staying from draft_seats
-    where room_id = room and player is not null;
+    where room_id = room and player is not null and ready_round = r.round + 1;
 
+  /*
+   * Ending the session leaves everybody where they are.
+   *
+   * Emptying the seats first was tidier and wrong: a seat is what grants
+   * sight of the room, so clearing them all took the final table away from
+   * the very people who had just played it, and their screens fell back to a
+   * draft that was over.
+   */
   if staying < 2 then
     update draft_rooms set status = 'done', ready_until = null where id = room;
     return 'done';
   end if;
+
+  -- Only when there is a next round does anybody actually leave it.
+  update draft_seats set player = null, is_bot = false, ready_round = 0
+    where room_id = room and (ready_round <> r.round + 1 or player is null);
 
   update draft_rooms
     set round = r.round + 1, status = 'drafting', started_at = now(), ready_until = null
