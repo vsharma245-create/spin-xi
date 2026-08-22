@@ -303,7 +303,8 @@ export async function loadBoard(
     (Omit<LadderRow, 'xp' | 'handle'> & { profiles: { handle: string } | null })[]
   >(
     `results?select=player,format,points,runs,wickets,wins,losses,draws,nrr,perfect,profiles(handle)` +
-      `&format=eq.${format}&mode=eq.quick${when}&order=points.desc&limit=400`,
+      `&format=eq.${format}&mode=eq.quick&league_id=is.null${when}` +
+      `&order=points.desc&limit=400`,
   )
 
   const best = new Map<string, LadderRow>()

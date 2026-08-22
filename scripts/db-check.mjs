@@ -260,6 +260,15 @@ try {
     )
     if (strangerSees !== 0) bad++
     await db.exec(`set request.jwt.claim.sub = ''`)
+
+    // A league season belongs on its league's table, not on the public one.
+    const onPublic = await db.query(
+      `select count(*)::int as n from ladder where player in ('${host}', '${mate}')`,
+    )
+    console.log(
+      `  ${Number(onPublic.rows[0].n) === 0 ? 'ok  ' : 'FAIL'} league seasons stay off the public ladder`,
+    )
+    if (Number(onPublic.rows[0].n) !== 0) bad++
   }
 
   /* ── The daily rotation, applied on its own ── */

@@ -75,9 +75,16 @@ create table if not exists league_entries (
 
 create index if not exists league_entries_player_idx on league_entries (player);
 
--- A season played in a league. Null for ordinary solo runs, which is every
--- row that already exists.
-alter table results add column if not exists league_id uuid references leagues (id) on delete set null;
+-- The column itself lives in players.sql, because the ladder there filters on
+-- it. This is only the reference, which cannot exist until leagues does.
+alter table results add column if not exists league_id uuid;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'results_league_id_fkey') then
+    alter table results add constraint results_league_id_fkey
+      foreign key (league_id) references leagues (id) on delete set null;
+  end if;
+end $$;
 create index if not exists results_league_idx on results (league_id, points desc) where league_id is not null;
 
 /* ── Keeping the rules ─────────────────────────────────────────────────── */

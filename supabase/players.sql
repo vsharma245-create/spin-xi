@@ -74,8 +74,20 @@ create table if not exists results (
   seed bigint,
   xi   jsonb,
 
+  /*
+   * Set when the season is an entry in a league.
+   *
+   * Declared here rather than in multiplayer.sql because the ladder below
+   * filters on it, and a view cannot reference a column added by a file that
+   * runs afterwards. The reference to leagues is added with that table.
+   */
+  league_id uuid,
+
   created_at timestamptz not null default now()
 );
+
+-- Added after the first release, for databases created before leagues existed.
+alter table results add column if not exists league_id uuid;
 
 -- Added after the first release: 'trophy' joined the modes, and a database
 -- that already exists keeps the constraint it was created with.
@@ -213,9 +225,16 @@ select distinct on (r.player, r.format)
 from results r
   join profiles p on p.id = r.player
   join player_stats s on s.id = r.player
--- Seasons only: a three-tie invitational on the same board as a fourteen-game
--- league would read as a very short season rather than a different thing.
-where r.mode <> 'trophy'
+-- Seasons only, and public ones.
+--
+-- A three-tie invitational on the same board as a fourteen-game league reads
+-- as a very short season rather than a different thing. A league season is
+-- the same argument from the other side: it was played under rules somebody
+-- else chose, against a field of their mates, and it belongs on their table
+-- rather than silently ranking you against strangers who never agreed to
+-- those rules. Both still count toward a career, which is where the playing
+-- is recorded.
+where r.mode <> 'trophy' and r.league_id is null
 order by r.player, r.format, r.points desc, r.created_at asc;
 
 -- The daily: one shared draw, so the fairest contest the game has.
