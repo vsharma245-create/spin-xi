@@ -384,6 +384,7 @@ export default function DraftBoard({
             setAbandoning(false)
             onQuit()
           }}
+          league={leagueName}
         />
       )}
 

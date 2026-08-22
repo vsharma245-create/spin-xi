@@ -23,6 +23,7 @@ export function AbandonDraft({
   onKeepDrafting,
   onRestart,
   onChangeEverything,
+  league,
 }: {
   open: boolean
   picked: number
@@ -31,6 +32,15 @@ export function AbandonDraft({
   onKeepDrafting: () => void
   onRestart: (next: Partial<DraftConfig>) => void
   onChangeEverything: () => void
+  /**
+   * The league this draft belongs to, if any.
+   *
+   * A league's rules are the same for everyone by definition, so the settings
+   * below are not the player's to change here. Offering them would let
+   * somebody draft eleven players and simulate a whole season before the
+   * database refused it for being played under different rules.
+   */
+  league?: string
 }) {
   // Held locally, and nothing is applied unless the draft is actually
   // abandoned. The dialog is unmounted while closed, so these start from the
@@ -45,9 +55,16 @@ export function AbandonDraft({
       <p className="text-[12.5px] leading-relaxed text-moss">
         You have picked <span className="font-bold text-cream">{picked}</span> of {total}. That XI
         goes with it — there is no getting it back.
+        {league && (
+          <>
+            {' '}
+            You will start again on the same rules, because everyone in{' '}
+            <span className="font-bold text-cream">{league}</span> plays them.
+          </>
+        )}
       </p>
 
-      <div className="mt-4">
+      <div className={`mt-4 ${league ? 'hidden' : ''}`}>
         <span className="label">next draft</span>
 
         <div className="mt-1.5 grid grid-cols-2 gap-1.5">
@@ -90,7 +107,7 @@ export function AbandonDraft({
           No, keep drafting
         </button>
         <button
-          onClick={() => onRestart({ format, ratingMode, difficulty })}
+          onClick={() => onRestart(league ? {} : { format, ratingMode, difficulty })}
           className="rounded-xl border border-leather/45 bg-leather/12 px-3 py-3 text-[12px] font-extrabold uppercase tracking-[0.04em] text-leather hover:bg-leather/20"
         >
           Yes, start fresh

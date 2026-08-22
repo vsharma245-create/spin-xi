@@ -265,7 +265,13 @@ export default function Play() {
               setState(s)
               setPhase('xi')
             }}
-            onQuit={() => setPhase('setup')}
+            /*
+             * Leaving a league draft goes back to the league, not to the
+             * settings screen. There is nothing to set — the rules are the
+             * league's — and landing on a form full of controls that cannot
+             * be used is a worse answer than landing where the contest is.
+             */
+            onQuit={() => (leagueCode ? navigate(`/l/${leagueCode}`) : setPhase('setup'))}
             leagueName={league?.name}
             onRestart={restart}
           />
