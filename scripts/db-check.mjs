@@ -524,6 +524,50 @@ try {
       if (!opened) bad++
     }
 
+    /* ── Leaving, and being called off ── */
+    {
+      const gone = (await db.query(`
+        insert into draft_rooms (code, host, seed, format, preset_id, rating_mode, difficulty,
+                                 seats, pick_seconds, status, started_at)
+        values ('live05', '${a}', 5, 'T20L', 'BALANCED', 'SEASON', 'NORMAL', 2, 120,
+                'drafting', now())
+        returning id`)).rows[0].id
+      await db.exec(`insert into draft_seats (room_id, seat, player) values
+                       ('${gone}', 0, '${a}'), ('${gone}', 1, '${b}');`)
+      await db.exec(`set request.jwt.claim.sub = '${a}'`)
+      await db.exec(`insert into draft_picks (room_id, round, pick_no, seat, squad_id, player_id, slot)
+                     values ('${gone}', 0, 0, 0, 's', 'g0', 0)`)
+
+      /*
+       * A seat handed to the bot is playable at once. Waiting out a two-minute
+       * clock for a seat that has announced it is empty only makes the people
+       * still there sit still.
+       */
+      await db.exec(`update draft_seats set is_bot = true where room_id = '${gone}' and seat = 1`)
+      let atOnce = true
+      try {
+        await db.exec(`insert into draft_picks (room_id, round, pick_no, seat, squad_id, player_id, slot)
+                       values ('${gone}', 0, 1, 1, 's', 'g1', 0)`)
+      } catch { atOnce = false }
+      const by = atOnce
+        ? (await db.query(`select made_by from draft_picks where room_id = '${gone}' and pick_no = 1`)).rows[0].made_by
+        : null
+      console.log(
+        `  ${atOnce && by === 'bot' ? 'ok  ' : 'FAIL'} a seat handed over is played at once, not after its clock`,
+      )
+      if (!atOnce || by !== 'bot') bad++
+
+      // And a draft the host called off takes no more picks.
+      await db.exec(`update draft_rooms set status = 'abandoned' where id = '${gone}'`)
+      let stopped = false
+      try {
+        await db.exec(`insert into draft_picks (room_id, round, pick_no, seat, squad_id, player_id, slot)
+                       values ('${gone}', 0, 2, 1, 's', 'g2', 1)`)
+      } catch { stopped = true }
+      console.log(`  ${stopped ? 'ok  ' : 'FAIL'} an abandoned draft takes no more picks`)
+      if (!stopped) bad++
+    }
+
     /* ── Between rounds: every way it can go ── */
     {
       const room2 = (await db.query(`
