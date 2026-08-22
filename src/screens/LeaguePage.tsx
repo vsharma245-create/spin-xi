@@ -135,18 +135,44 @@ export default function LeaguePage() {
       )}
 
       {inIt && (
-        <div className="mt-6 grid grid-cols-2 gap-2">
-          <Button onClick={() => navigate(`/play?league=${code}`)} full>
-            {rows.some((r) => r.player === mine) ? 'Play again' : 'Play your season'}
-          </Button>
-          <Button variant="ghost" onClick={() => void share()} full>
-            {copied ? 'Link copied' : 'Share link'}
-          </Button>
-        </div>
+        <>
+          {/*
+           * Sharing is held back until the host has played.
+           *
+           * The link is useless before then — it opens on "the host has still
+           * to play" — and offering it invites exactly what the rule exists to
+           * prevent: sending it out, watching the field land, and playing last
+           * against a known target.
+           */}
+          {!league.data?.host_played_at ? (
+            <div className="mt-6">
+              <Button size="lg" full onClick={() => navigate(`/play?league=${code}`)}>
+                Play your season →
+              </Button>
+              <p className="mt-2 text-center text-[10.5px] leading-snug text-moss">
+                The link opens to your mates once your own season is in. Nobody can join before
+                that, so nobody is playing against a score you already know.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 grid grid-cols-2 gap-2">
+              <Button onClick={() => navigate(`/play?league=${code}`)} full>
+                {rows.some((r) => r.player === mine) ? 'Play again' : 'Play your season'}
+              </Button>
+              <Button variant="ghost" onClick={() => void share()} full>
+                {copied ? 'Link copied' : 'Share link'}
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       <div className="mt-7">
-        <SectionLabel right={<span className="label">{rows.length} in</span>}>table</SectionLabel>
+        <SectionLabel
+          right={<span className="label">{rows.length} played</span>}
+        >
+          table
+        </SectionLabel>
         <div className="surface divide-y divide-white/[0.05] px-3.5">
           {table.loading && (
             <div className="py-8 text-center text-[12px] text-moss">Reading the table…</div>
@@ -196,7 +222,7 @@ export default function LeaguePage() {
         </div>
       </div>
 
-      {inIt && (
+      {inIt && league.data?.host_played_at && (
         <div className="mt-5 rounded-card border border-white/[0.06] px-3.5 py-3">
           <span className="label text-moss">the link</span>
           <p className="mt-1 break-all text-[11.5px] text-cream-dim">{link}</p>

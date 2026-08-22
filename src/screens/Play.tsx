@@ -266,6 +266,7 @@ export default function Play() {
               setPhase('xi')
             }}
             onQuit={() => setPhase('setup')}
+            leagueName={league?.name}
             onRestart={restart}
           />
         )}

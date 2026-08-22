@@ -38,6 +38,7 @@ export default function DraftBoard({
   onComplete,
   onQuit,
   onRestart,
+  leagueName,
 }: {
   state: DraftState
   setState: (s: DraftState) => void
@@ -46,6 +47,8 @@ export default function DraftBoard({
   onQuit: () => void
   /** Abandon this one and begin another, with anything changed applied. */
   onRestart: (next: Partial<DraftConfig>) => void
+  /** Set when this season is an entry in a league. */
+  leagueName?: string
 }) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [target, setTarget] = useState<Squad | null>(null)
@@ -199,6 +202,10 @@ export default function DraftBoard({
             <ProgressBar value={filled} max={XI_SIZE} />
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {/* Which league this counts toward, if any. Without it a player
+                arriving from a link has no sign that the season they are about
+                to draft is an entry in somebody's contest. */}
+            {leagueName && <Pill tone="gold">{leagueName}</Pill>}
             <Pill tone="pitch">{tournament.short}</Pill>
             <Pill>
               {state.config.scope === 'TEAM'
