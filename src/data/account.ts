@@ -144,7 +144,18 @@ export async function api<T>(
     const detail = await res.text().catch(() => '')
     throw new Error(`${res.status} ${res.statusText}${detail ? ` — ${detail.slice(0, 200)}` : ''}`)
   }
-  return res.status === 204 ? (undefined as T) : ((await res.json()) as T)
+  /*
+   * An empty body is an answer, not a failure.
+   *
+   * PostgREST replies to a write with `Prefer: return=minimal` with no body at
+   * all — 204 for a PATCH, but 201 for a POST, and only the first was handled.
+   * So every insert that asked for nothing back succeeded on the server and
+   * then threw here, on a JSON parse of an empty string, into whatever catch
+   * happened to be nearest. Which is how a draft room got created and the
+   * screen still said it could not be.
+   */
+  const body = await res.text()
+  return (body ? JSON.parse(body) : undefined) as T
 }
 
 /* ── Claiming an account ───────────────────────────────────────────────── */
