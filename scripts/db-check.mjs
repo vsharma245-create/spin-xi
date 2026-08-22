@@ -131,6 +131,84 @@ try {
   console.log(`  ${staysOffBoards ? 'ok  ' : 'FAIL'} a trophy stays off the season boards`)
   if (!countsInCareer || !staysOffBoards) bad++
 
+  /* ── Multiplayer ── */
+  process.stdout.write('  multiplayer.sql … ')
+  await db.exec(await file('multiplayer.sql'))
+  console.log('ok')
+
+  process.stdout.write('  multiplayer.sql again (re-runnable) … ')
+  await db.exec(await file('multiplayer.sql'))
+  console.log('ok')
+
+  {
+    const host = '33333333-3333-3333-3333-333333333333'
+    const mate = '44444444-4444-4444-4444-444444444444'
+    await db.exec(`
+      insert into auth.users (id) values ('${host}'), ('${mate}') on conflict do nothing;
+      insert into profiles (id, handle) values ('${host}', 'HOST'), ('${mate}', 'MATE')
+        on conflict do nothing;
+      insert into leagues (code, name, host, format, preset_id, rating_mode, difficulty,
+                           world_teams, scoring, from_year, to_year)
+      values ('abc123', 'Sunday Legends', '${host}', 'T20L', 'BALANCED', 'SEASON', 'HARD',
+              true, 'best', 2010, 2020);
+      insert into league_entries (league_id, player)
+        select id, '${host}' from leagues where code = 'abc123';
+      insert into league_entries (league_id, player)
+        select id, '${mate}' from leagues where code = 'abc123';
+    `)
+
+    const season = (who, diff, pts, yrs = '2010, 2020') => `
+      insert into results (player, league_id, format, mode, preset_id, rating_mode, difficulty,
+                           from_year, to_year, world_teams, wins, losses, draws, runs, wickets,
+                           outcome, points, idx)
+      select '${who}', id, 'T20L', 'quick', 'BALANCED', 'SEASON', '${diff}', ${yrs}, true,
+             9, 5, 0, 2400, 110, 'ELIMINATED', ${pts}, 1000
+      from leagues where code = 'abc123'`
+
+    await db.exec(season(host, 'HARD', 2600))
+    await db.exec(season(mate, 'HARD', 2900))
+
+    // Playing on Easy in a Hard league must be refused.
+    let blockedDiff = false
+    try { await db.exec(season(mate, 'EASY', 9999)) } catch { blockedDiff = true }
+    console.log(`  ${blockedDiff ? 'ok  ' : 'FAIL'} a season on the wrong difficulty is refused`)
+    if (!blockedDiff) bad++
+
+    // So must a wider span of years than the league agreed.
+    let blockedYears = false
+    try { await db.exec(season(mate, 'HARD', 9999, '1990, 2026')) } catch { blockedYears = true }
+    console.log(`  ${blockedYears ? 'ok  ' : 'FAIL'} a season outside the league's years is refused`)
+    if (!blockedYears) bad++
+
+    // A stranger cannot enter a league they never joined.
+    const stranger = '55555555-5555-5555-5555-555555555555'
+    await db.exec(`insert into auth.users (id) values ('${stranger}') on conflict do nothing;
+                   insert into profiles (id, handle) values ('${stranger}', 'STRANGER') on conflict do nothing;`)
+    let blockedJoin = false
+    try { await db.exec(season(stranger, 'HARD', 5000)) } catch { blockedJoin = true }
+    console.log(`  ${blockedJoin ? 'ok  ' : 'FAIL'} a season from someone who never joined is refused`)
+    if (!blockedJoin) bad++
+
+    // The rules cannot be rewritten once people are playing to them.
+    let locked = false
+    try { await db.exec(`update leagues set difficulty = 'EASY' where code = 'abc123'`) } catch { locked = true }
+    console.log(`  ${locked ? 'ok  ' : 'FAIL'} a league's rules cannot be changed afterwards`)
+    if (!locked) bad++
+
+    // 'best' keeps the higher of two runs; 'latest' would keep the newer.
+    await db.exec(season(mate, 'HARD', 1200))
+    // Session-level: `set local` outside a transaction is discarded, which
+    // left auth.uid() null and the view correctly showing nothing.
+    await db.exec(`set request.jwt.claim.sub = '${mate}'`)
+    const table = await db.query(`select handle, points from league_table order by points desc`)
+    const kept = table.rows.find((r) => r.handle === 'MATE')?.points
+    console.log(
+      `  ${Number(kept) === 2900 ? 'ok  ' : 'FAIL'} scoring 'best' keeps the higher run (${kept})`,
+    )
+    if (Number(kept) !== 2900) bad++
+    console.log(`  ok   league table: ${table.rows.length} rows for a member`)
+  }
+
   /* ── The daily rotation, applied on its own ── */
   process.stdout.write('  challenges.sql … ')
   await db.exec(await file('challenges.sql'))
