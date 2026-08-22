@@ -236,9 +236,17 @@ drop trigger if exists draft_pick_is_legal_trg on draft_picks;
 create trigger draft_pick_is_legal_trg before insert on draft_picks
   for each row execute function draft_pick_is_legal();
 
-/** The draft is over when every seat has eleven. */
+/**
+ * The draft is over when every seat has eleven.
+ *
+ * Security definer, because this runs as whoever made the last pick and only
+ * the host may update a room. The last pick of a round belongs to whichever
+ * seat the snake lands on, which is usually not the host — so the round ended
+ * for the host and never for anybody else, and a full draft sat in "drafting"
+ * with nothing left to draft.
+ */
 create or replace function draft_close_when_full() returns trigger
-language plpgsql as $$
+language plpgsql security definer set search_path = public as $$
 declare r draft_rooms;
 begin
   select * into r from draft_rooms where id = new.room_id;

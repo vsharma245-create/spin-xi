@@ -504,6 +504,18 @@ try {
            values ('${full}', 0, ${n}, ${seat}, 'sq', 'q${n}', ${Math.floor(n / 2)})`,
         )
       }
+      /*
+       * The last pick of a round is rarely the host's, and only the host may
+       * update a room — so this has to be checked as somebody who is not the
+       * host and not the owner, or the trigger's own permissions are never
+       * tested. Which is exactly how it reached production.
+       */
+      await db.exec(`
+        grant insert, select on draft_picks to rls_probe;
+        grant select on draft_rooms, draft_seats to rls_probe;
+        grant execute on function in_draft(uuid), snake_seat(int, int) to rls_probe;
+      `)
+
       const after = (await db.query(`select status, ready_until from draft_rooms where id = '${full}'`)).rows[0]
       const opened = after.status === 'review' && after.ready_until !== null
       console.log(
