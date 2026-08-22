@@ -231,6 +231,23 @@ where r.league_id is not null
 alter table leagues        enable row level security;
 alter table league_entries enable row level security;
 
+/**
+ * Is the caller in this league?
+ *
+ * Security definer on purpose. A policy on league_entries that asks
+ * league_entries who is a member calls itself, and Postgres stops it with
+ * "infinite recursion detected in policy" — which is what happened. Reading
+ * the membership as the owner breaks the loop, and the function answers only
+ * about the caller, so it hands nothing back that the caller could not
+ * already see.
+ */
+create or replace function in_league(l uuid) returns boolean
+language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from league_entries e where e.league_id = l and e.player = auth.uid()
+  )
+$$;
+
 drop policy if exists "leagues visible to members" on leagues;
 drop policy if exists "own league insert"          on leagues;
 drop policy if exists "host may update own league" on leagues;
@@ -240,9 +257,7 @@ drop policy if exists "own entry insert"           on league_entries;
 -- A league is readable by the people in it. Everyone else needs the code,
 -- which goes through league_preview.
 create policy "leagues visible to members" on leagues for select
-  using (host = auth.uid()
-         or exists (select 1 from league_entries e
-                    where e.league_id = id and e.player = auth.uid()));
+  using (host = auth.uid() or in_league(id));
 
 create policy "own league insert" on leagues for insert with check (host = auth.uid());
 
@@ -251,9 +266,7 @@ create policy "own league insert" on leagues for insert with check (host = auth.
 create policy "host may update own league" on leagues for update using (host = auth.uid());
 
 create policy "entries visible to members" on league_entries for select
-  using (player = auth.uid()
-         or exists (select 1 from league_entries mine
-                    where mine.league_id = league_id and mine.player = auth.uid()));
+  using (player = auth.uid() or in_league(league_entries.league_id));
 
 create policy "own entry insert" on league_entries for insert with check (player = auth.uid());
 
@@ -282,6 +295,7 @@ begin
     grant select, insert on leagues, league_entries to anon, authenticated;
     grant update on leagues to anon, authenticated;
     grant select on league_table to anon, authenticated;
-    grant execute on function league_preview(text), league_join(text) to anon, authenticated;
+    grant execute on function league_preview(text), league_join(text), in_league(uuid)
+      to anon, authenticated;
   end if;
 end $$;

@@ -207,6 +207,59 @@ try {
     )
     if (Number(kept) !== 2900) bad++
     console.log(`  ok   league table: ${table.rows.length} rows for a member`)
+
+    /*
+     * Now read them as somebody who is not the owner.
+     *
+     * Everything above runs as the superuser, which bypasses row level
+     * security completely — so a policy can be catastrophically wrong and
+     * every test still passes. That is exactly what happened: the policy on
+     * league_entries asked league_entries who the members were, called itself,
+     * and every read of a league came back "infinite recursion detected in
+     * policy" the moment it met a real database.
+     */
+    await db.exec(`
+      do $$ begin
+        if not exists (select 1 from pg_roles where rolname = 'rls_probe') then
+          create role rls_probe nologin;
+        end if;
+      end $$;
+      grant usage on schema public to rls_probe;
+      grant select on leagues, league_entries, league_table, results, profiles to rls_probe;
+      grant execute on function in_league(uuid) to rls_probe;
+    `)
+
+    let recursion = null
+    let visible = -1
+    try {
+      await db.exec(`set role rls_probe; set request.jwt.claim.sub = '${mate}';`)
+      const seen = await db.query('select count(*)::int as n from leagues')
+      visible = Number(seen.rows[0].n)
+    } catch (err) {
+      recursion = String(err.message ?? err)
+    } finally {
+      await db.exec('reset role')
+    }
+    console.log(
+      `  ${recursion ? 'FAIL' : 'ok  '} leagues are readable under row level security` +
+        (recursion ? ` — ${recursion.slice(0, 60)}` : ` (member sees ${visible})`),
+    )
+    if (recursion) bad++
+
+    // And a stranger must see none of it.
+    let strangerSees = -1
+    try {
+      await db.exec(`set role rls_probe; set request.jwt.claim.sub = '${stranger}';`)
+      const seen = await db.query('select count(*)::int as n from leagues')
+      strangerSees = Number(seen.rows[0].n)
+    } finally {
+      await db.exec('reset role')
+    }
+    console.log(
+      `  ${strangerSees === 0 ? 'ok  ' : 'FAIL'} a stranger sees no leagues (${strangerSees})`,
+    )
+    if (strangerSees !== 0) bad++
+    await db.exec(`set request.jwt.claim.sub = ''`)
   }
 
   /* ── The daily rotation, applied on its own ── */
