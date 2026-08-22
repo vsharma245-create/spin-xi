@@ -337,6 +337,126 @@ try {
     if (!counted) bad++
   }
 
+  /* ── The live draft ── */
+  process.stdout.write('  live.sql … ')
+  await db.exec(await file('live.sql'))
+  console.log('ok')
+
+  process.stdout.write('  live.sql again (re-runnable) … ')
+  await db.exec(await file('live.sql'))
+  console.log('ok')
+
+  {
+    const seatOf = (n, seats) =>
+      Math.floor(n / seats) % 2 === 0 ? n % seats : seats - 1 - (n % seats)
+    const order = await db.query(
+      `select array_agg(snake_seat(g, 4) order by g) as seats from generate_series(0, 11) g`,
+    )
+    const got = order.rows[0].seats.map(Number)
+    const want = Array.from({ length: 12 }, (_, n) => seatOf(n, 4))
+    const snakeOk = got.join(',') === want.join(',')
+    console.log(`  ${snakeOk ? 'ok  ' : 'FAIL'} snake order: ${got.join(' ')}`)
+    if (!snakeOk) bad++
+
+    const a = '88888888-8888-8888-8888-888888888888'
+    const b = '99999999-9999-9999-9999-999999999999'
+    await db.exec(`
+      insert into auth.users (id) values ('${a}'), ('${b}') on conflict do nothing;
+      insert into profiles (id, handle) values ('${a}', 'SEATA'), ('${b}', 'SEATB')
+        on conflict do nothing;
+      insert into draft_rooms (code, host, seed, format, preset_id, rating_mode, difficulty,
+                               seats, pick_seconds, status, started_at)
+      values ('live01', '${a}', 12345, 'T20L', 'BALANCED', 'SEASON', 'NORMAL',
+              2, 30, 'drafting', now());
+      insert into draft_seats (room_id, seat, player)
+        select id, 0, '${a}' from draft_rooms where code = 'live01';
+      insert into draft_seats (room_id, seat, player)
+        select id, 1, '${b}' from draft_rooms where code = 'live01';
+    `)
+    const room = (await db.query(`select id from draft_rooms where code = 'live01'`)).rows[0].id
+
+    const pick = (who, no, seat, player) => `
+      set request.jwt.claim.sub = '${who}';
+      insert into draft_picks (room_id, pick_no, seat, squad_id, player_id, slot)
+      values ('${room}', ${no}, ${seat}, 'squad-x', '${player}', ${no});`
+
+    await db.exec(pick(a, 0, 0, 'p1'))
+    console.log('  ok   seat 0 takes pick 0')
+
+    // Out of turn, jumping the queue, and picking for somebody still deciding.
+    let outOfTurn = false
+    try { await db.exec(pick(a, 1, 1, 'p2')) } catch { outOfTurn = true }
+    console.log(`  ${outOfTurn ? 'ok  ' : 'FAIL'} seat 0 cannot take seat 1's turn`)
+    if (!outOfTurn) bad++
+
+    let skipped = false
+    try { await db.exec(pick(b, 2, 0, 'p3')) } catch { skipped = true }
+    console.log(`  ${skipped ? 'ok  ' : 'FAIL'} a pick cannot skip ahead in the order`)
+    if (!skipped) bad++
+
+    await db.exec(pick(b, 1, 1, 'p2'))
+    console.log('  ok   seat 1 takes pick 1')
+
+    // The same cricketer cannot be in two XIs: the pool is shared.
+    let dupe = false
+    try { await db.exec(pick(b, 2, 1, 'p1')) } catch { dupe = true }
+    console.log(`  ${dupe ? 'ok  ' : 'FAIL'} a player already taken cannot be taken again`)
+    if (!dupe) bad++
+
+    // Once the clock is out, anybody may move the seat on — that is the bot.
+    await db.exec(`update draft_rooms set pick_seconds = 10 where id = '${room}'`)
+    // Every pick, not just the last: the deadline is measured from the most
+    // recent one, so leaving pick 0 at "now" keeps the turn fresh.
+    await db.exec(`update draft_picks set created_at = now() - interval '1 hour'
+                   where room_id = '${room}'`)
+    await db.exec(pick(a, 2, 1, 'p4'))
+    const madeBy = (
+      await db.query(`select made_by from draft_picks where room_id = '${room}' and pick_no = 2`)
+    ).rows[0].made_by
+    console.log(
+      `  ${madeBy === 'bot' ? 'ok  ' : 'FAIL'} an overdue seat is played by the bot (made_by ${madeBy})`,
+    )
+    if (madeBy !== 'bot') bad++
+    /*
+     * And read them as somebody who is not the owner.
+     *
+     * The leagues policies recursed and every owner-run test still passed, so
+     * a live draft does not get to skip this.
+     */
+    await db.exec(`
+      grant select on draft_rooms, draft_seats, draft_picks to rls_probe;
+      grant execute on function in_draft(uuid) to rls_probe;
+    `)
+    let broke = null
+    let seen = -1
+    try {
+      await db.exec(`set role rls_probe; set request.jwt.claim.sub = '${a}';`)
+      seen = Number((await db.query('select count(*)::int as n from draft_picks')).rows[0].n)
+    } catch (err) {
+      broke = String(err.message ?? err)
+    } finally {
+      await db.exec('reset role')
+    }
+    console.log(
+      `  ${broke ? 'FAIL' : 'ok  '} a draft reads under row level security` +
+        (broke ? ` — ${broke.slice(0, 50)}` : ` (seat holder sees ${seen} picks)`),
+    )
+    if (broke) bad++
+
+    let outsider = -1
+    try {
+      // Somebody with an account and no seat in this room.
+      await db.exec(`set role rls_probe; set request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';`)
+      outsider = Number((await db.query('select count(*)::int as n from draft_picks')).rows[0].n)
+    } finally {
+      await db.exec('reset role')
+    }
+    console.log(`  ${outsider === 0 ? 'ok  ' : 'FAIL'} somebody with no seat sees no picks (${outsider})`)
+    if (outsider !== 0) bad++
+
+    await db.exec(`set request.jwt.claim.sub = ''`)
+  }
+
   /* ── The daily rotation, applied on its own ── */
   process.stdout.write('  challenges.sql … ')
   await db.exec(await file('challenges.sql'))

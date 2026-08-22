@@ -190,6 +190,7 @@ try {
   // cannot leave a ladder half-built.
   await run('analytics.sql')
   await run('multiplayer.sql')
+  await run('live.sql')
 
   // The player side has no expected counts — it grows on its own — so it is
   // checked for existence rather than size.
@@ -200,6 +201,8 @@ try {
       to_regclass('public.player_stats') is not null as player_stats,
       to_regclass('public.events')       is not null as events,
       to_regclass('public.leagues')      is not null as leagues,
+      to_regclass('public.draft_rooms')  is not null as draft_rooms,
+      to_regclass('public.draft_picks')  is not null as draft_picks,
       to_regclass('public.league_table') is not null as league_table,
       to_regclass('public.funnel_daily') is not null as funnel_daily,
       to_regclass('public.ladder')       is not null as ladder,
