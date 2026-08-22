@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Option, Screen, SectionLabel } from '../components/ui'
 import { useAsync } from '../data/useAsync'
 import { createLeague, myLeagues, timeLeft } from '../data/leagues'
+import { createRoom } from '../data/live'
 import { FORMAT_ORDER, PRESETS, TOURNAMENTS } from '../game/types'
 import { yearsForFormat } from '../data/squads'
 import type { Difficulty, Format, RatingMode } from '../game/types'
@@ -49,7 +50,31 @@ export default function Multiplayer() {
   const [scoring, setScoring] = useState<'latest' | 'best'>('best')
   const [minutes, setMinutes] = useState<number | null>(1440)
   const [busy, setBusy] = useState(false)
+  const [live, setLive] = useState(false)
   const [error, setError] = useState('')
+
+  const startLive = async () => {
+    setLive(true)
+    setError('')
+    try {
+      const bounds = yearsForFormat(format)
+      const room = await createRoom({
+        format,
+        preset_id: presetId,
+        rating_mode: ratingMode,
+        difficulty,
+        from_year: bounds[0],
+        to_year: bounds[1],
+        world_teams: true,
+        seats: 4,
+        pick_seconds: 30,
+      })
+      navigate(`/d/${room.code}`)
+    } catch (err) {
+      setError((err as Error).message)
+      setLive(false)
+    }
+  }
 
   const start = async () => {
     setBusy(true)
@@ -88,6 +113,29 @@ export default function Multiplayer() {
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-moss">
           You set the rules once. Everyone drafts their own eleven under them, plays a season
           whenever they like, and the best one wins.
+        </p>
+      </div>
+
+      {/* ── Live draft ── */}
+      <div className="mt-6 rounded-card border border-pitch/25 bg-pitch/[0.05] px-4 py-4">
+        <span className="label text-pitch">live draft</span>
+        <p className="mt-1.5 text-[12.5px] leading-relaxed text-cream-dim">
+          Four of you at once, out of one pool of squads. A side somebody else takes is gone —
+          which is what makes it a draft rather than four games at the same time.
+        </p>
+        <div className="mt-3">
+          <Button
+            full
+            onClick={() => void startLive()}
+            disabled={live}
+            variant="ghost"
+          >
+            {live ? 'Opening the room…' : 'Start a live draft'}
+          </Button>
+        </div>
+        <p className="mt-2 text-[10px] leading-snug text-moss/70">
+          You get a link to send round. Empty seats draft for themselves, so nobody waits on
+          somebody who never turns up.
         </p>
       </div>
 
