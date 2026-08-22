@@ -31,6 +31,7 @@ hydrate((await db.query('select * from roster_feed')).rows as never[])
 
 const SEATS = 2
 const SEED = 4242
+const ROUND = 0
 const config: DraftConfig = {
   format: 'T20L', scope: 'ALL', teamKey: null, years: null, presetId: 'BALANCED',
   ratingMode: 'SEASON', hideRatings: false, difficulty: 'NORMAL', liveToss: false,
@@ -63,7 +64,8 @@ xis.forEach((slots, seat) => {
 })
 
 const results = xis.map((slots, seat) =>
-  playSeason(slots, null, makeRng(SEED + 0 * 7919 + seat * 104729), config, `SEAT ${seat + 1}`),
+  // Same shape as the client: room seed, round, seat.
+  playSeason(slots, null, makeRng(SEED + ROUND * 7919 + seat * 104729), config, `SEAT ${seat + 1}`),
 )
 results.forEach((r, seat) =>
   console.log(`  seat ${seat} season: ${r.wins}-${r.losses} · ${r.score.points} pts · ${r.outcome}`),
