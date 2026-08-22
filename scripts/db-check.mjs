@@ -476,6 +476,42 @@ try {
     console.log(`  ${outsider === 0 ? 'ok  ' : 'FAIL'} somebody with no seat sees no picks (${outsider})`)
     if (outsider !== 0) bad++
 
+    /*
+     * A full round closes the draft and opens the review.
+     *
+     * There is a bot seat in another room by this point, which is exactly the
+     * shape that broke it in production: the count of seats to fill was
+     * written without brackets and picked up every abandoned seat on the site.
+     */
+    {
+      const full = (await db.query(`
+        insert into draft_rooms (code, host, seed, format, preset_id, rating_mode, difficulty,
+                                 seats, pick_seconds, status, started_at)
+        values ('live04', '${a}', 3, 'T20L', 'BALANCED', 'SEASON', 'NORMAL', 2, 30,
+                'drafting', now())
+        returning id`)).rows[0].id
+      await db.exec(`
+        insert into draft_seats (room_id, seat, player) values ('${full}', 0, '${a}'), ('${full}', 1, '${b}');
+        insert into draft_seats (room_id, seat, player, is_bot)
+          select id, 0, null, true from draft_rooms where code = 'live02';
+      `)
+      for (let n = 0; n < 22; n++) {
+        const seat = Math.floor(n / 2) % 2 === 0 ? n % 2 : 1 - (n % 2)
+        const who = seat === 0 ? a : b
+        await db.exec(`set request.jwt.claim.sub = '${who}'`)
+        await db.exec(
+          `insert into draft_picks (room_id, round, pick_no, seat, squad_id, player_id, slot)
+           values ('${full}', 0, ${n}, ${seat}, 'sq', 'q${n}', ${Math.floor(n / 2)})`,
+        )
+      }
+      const after = (await db.query(`select status, ready_until from draft_rooms where id = '${full}'`)).rows[0]
+      const opened = after.status === 'review' && after.ready_until !== null
+      console.log(
+        `  ${opened ? 'ok  ' : 'FAIL'} a full round opens the review (${after.status})`,
+      )
+      if (!opened) bad++
+    }
+
     /* ── Between rounds: every way it can go ── */
     {
       const room2 = (await db.query(`

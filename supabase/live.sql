@@ -243,8 +243,11 @@ declare r draft_rooms;
 begin
   select * into r from draft_rooms where id = new.room_id;
   if (select count(*) from draft_picks p where p.room_id = r.id and p.round = r.round)
-     >= (select count(*) from draft_seats s where s.room_id = r.id and s.player is not null
-                                                or s.is_bot) * 11
+     -- The brackets matter: without them this reads as "(this room and
+     -- occupied) or a bot anywhere", and every abandoned seat in every other
+     -- room raised the bar for this one, so the draft never filled up.
+     >= (select count(*) from draft_seats s
+          where s.room_id = r.id and (s.player is not null or s.is_bot)) * 11
   then
     -- Full XIs mean the cricket, not the end. The seasons are played, then
     -- everybody is asked whether they want another.
