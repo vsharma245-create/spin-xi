@@ -232,64 +232,19 @@ for (const id of new Set(rows.map((r) => r.id))) {
   nationOfPlayer.set(id, settled ?? claimed ?? home ?? 'IN')
 }
 
-/* ── Full names, borrowed from the hand-written archive ────────────────── */
-
-let fullNames = new Map()
-try {
-  const { execFileSync } = await import('node:child_process')
-  const { build } = await import('esbuild')
-  const tmp = join(ROOT, '.cricsheet/names-entry.mjs')
-  await writeFile(
-    tmp,
-    `import { ROSTERS } from ${JSON.stringify(join(ROOT, 'src/data/rosters.ts'))}
-     const out = new Set()
-     for (const r of ROSTERS) for (const row of r[6]) out.add(row[0])
-     process.stdout.write(JSON.stringify([...out]))`,
-  )
-  const bundled = join(ROOT, '.cricsheet/names.mjs')
-  await build({ entryPoints: [tmp], bundle: true, platform: 'node', format: 'esm', outfile: bundled, logLevel: 'error' })
-  const names = JSON.parse(execFileSync(process.execPath, [bundled]).toString())
-  /**
-   * "Virat Kohli" is findable from "V Kohli" — same surname, same first
-   * initial. But "R Khan" fits Rashid, Rahel, Robiul and Rameez alike, and
-   * guessing there would put one man's name on five different cricketers. Any
-   * key that more than one full name answers to is dropped.
-   */
-  const ambiguous = new Set()
-  for (const full of names) {
-    const parts = full.split(' ')
-    if (parts.length < 2) continue
-    const k = `${parts[0][0]}|${upper(parts.slice(1).join(' '))}`
-    if (fullNames.has(k) && fullNames.get(k) !== full) ambiguous.add(k)
-    fullNames.set(k, full)
-  }
-  for (const k of ambiguous) fullNames.delete(k)
-  if (ambiguous.size) console.log(`  ${ambiguous.size} names too ambiguous to match, left as scorecard form`)
-  console.log(`  ${names.length} hand-written names available for upgrading`)
-} catch (err) {
-  console.log(`  (no hand-written names to merge: ${err.message})`)
-}
-
-/**
- * Only an abbreviated scorecard name gets expanded. "Rashid Khan" is already
- * written out in full, so there is nothing to look up and nothing to get wrong.
- */
 /**
  * The name to print on a card.
  *
  * A scorecard abbreviates — "RG Sharma" — because a scorecard has a column to
  * fit. A player card has a line for the given name above the surname, and
- * "RG" is not a given name. Wikidata is asked first, since it is joined on an
- * identifier and so cannot mistake one man for another; the hand-written
- * archive is the fallback, and it matches on initial and surname, which three
- * different Khans can share.
+ * "RG" is not a given name.
+ *
+ * Wikidata supplies these, joined on an identifier so it cannot mistake one
+ * man for another. There used to be a second source — the hand-written roster
+ * file — matched on initial and surname, which three different Khans can
+ * share. That file is gone, and with it the guessing.
  */
-const displayName = (scorecard) => {
-  const parts = scorecard.split(' ')
-  const abbreviated = parts.length >= 2 && /^[A-Z]{1,3}$/.test(parts[0])
-  if (!abbreviated) return scorecard
-  return fullNames.get(`${parts[0][0]}|${surnameOf(scorecard)}`) ?? scorecard
-}
+const displayName = (scorecard) => scorecard
 
 /* ── Shape ─────────────────────────────────────────────────────────────── */
 
@@ -343,6 +298,24 @@ function bowlingType(id) {
 }
 
 let retyped = 0
+let demoted = 0
+
+/**
+ * What counts as a spell, by format.
+ *
+ * A flat bar cannot work across formats: two overs a match is a real share of
+ * a T20 innings, where nobody may bowl more than four, and nothing at all in
+ * a Test, where a frontline bowler sends down twenty. Kohli cleared a flat bar
+ * in Test seasons on about thirteen balls a match — which is a captain turning
+ * his arm over before lunch, not an all-rounder.
+ *
+ * A quarter of a full quota in the limited-overs games, five overs in a Test.
+ */
+const MIN_AR_BALLS = { T20L: 12, T20WC: 12, ODIWC: 18, TEST: 30 }
+const arBar = (comp) => {
+  const formats = COMP_META[comp]?.[1] ?? ['T20L']
+  return Math.max(...formats.map((f) => MIN_AR_BALLS[f] ?? 12))
+}
 
 const INTL_COMPS = new Set(['t20s', 'odis', 'tests'])
 /* ── Who kept wicket ───────────────────────────────────────────────────── */
@@ -351,14 +324,26 @@ const INTL_COMPS = new Set(['t20s', 'odis', 'tests'])
  * Every side that took the field had a wicketkeeper, so every squad here
  * needs one.
  *
- * Nothing in a scorecard says who it was, and reading it off stumpings alone
- * left a quarter of squads without a keeper — a keeper can easily go a whole
- * season without a stumping, and then the draft has nobody to put in the WK
- * slot. Catches are the broader signal: the keeper takes more of them than
- * any fielder, and a stumping is still proof, so it counts for more.
+ * Nothing in a scorecard says who it was, and a keeper can go a whole season
+ * without a stumping, so stumpings alone leave squads with nobody to put in
+ * the WK slot.
  *
- * The best candidate in each squad takes the gloves. Somebody has to.
+ * But catches cannot stand in for the gloves, which is what this used to
+ * assume. Scoring stumpings*4 + catches put Virat Kohli — 464 catches and not
+ * one stumping in a hundred seasons — level with Dinesh Karthik at Royal
+ * Challengers Bengaluru in 2024, and the tie broke toward whoever the sort
+ * happened to see first. A brilliant outfielder who does not bowl looks
+ * exactly like a keeper to that formula.
+ *
+ * A stumping is different in kind: nobody but the keeper makes one. So it is
+ * used as proof rather than as weight — across a whole career, because a
+ * player who kept in any season is a keeper, and one who never has is not,
+ * however many catches they hold. Catches only rank the men who have already
+ * proved they keep.
  */
+const EVER_KEPT = new Set()
+for (const r of rows) if (r.stats.stumpings > 0) EVER_KEPT.add(r.id)
+
 const KEEPER_GLOVES = new Map()
 {
   const bySquad = new Map()
@@ -374,10 +359,28 @@ const KEEPER_GLOVES = new Map()
     // A keeper does not bowl. Anyone who sent down more than a couple of
     // overs a match is a fielder who took catches, not the man behind them.
     const candidates = men.filter((r) => r.stats.bowlBalls <= r.stats.matches * 12)
-    const scored = (candidates.length ? candidates : men)
-      .map((r) => ({ r, score: r.stats.stumpings * 4 + r.stats.catches }))
-      .filter((c) => c.score > 0)
-      .sort((a, b) => b.score - a.score)
+    const pool = candidates.length ? candidates : men
+
+    const rank = (list, needEvidence) =>
+      list
+        .map((r) => ({ r, score: r.stats.stumpings * 100 + r.stats.catches }))
+        // Only the last resort needs a dismissal to go on. A known keeper who
+        // took nothing all season is still the keeper: India's single T20 of
+        // 2010/11 had Dhoni behind the stumps and no dismissal to his name,
+        // and requiring one handed the gloves to Kohli and his one catch.
+        .filter((c) => !needEvidence || c.score > 0)
+        .sort((a, b) => b.score - a.score)
+
+    // Kept this season, then kept at some point in their career, and only
+    // then — for a squad where nobody ever kept — the best pair of hands.
+    const stumpedHere = pool.filter((r) => r.stats.stumpings > 0)
+    const careerKeepers = pool.filter((r) => EVER_KEPT.has(r.id))
+    const scored = stumpedHere.length
+      ? rank(stumpedHere, false)
+      : careerKeepers.length
+        ? rank(careerKeepers, false)
+        : rank(pool, true)
+
     if (scored.length) KEEPER_GLOVES.set(squadId, scored[0].r.id)
   }
 }
@@ -435,6 +438,23 @@ for (const r of rows) {
 
   // A bowler's type is a fact about the player, not about the season.
   let role = r.role
+
+  /*
+   * An all-rounder bowls a spell. Somebody who rolls over the occasional over
+   * is a batter who bowls a bit, and calling them an all-rounder puts them in
+   * a draft slot meant for a second bowling option.
+   *
+   * Virat Kohli came out an all-rounder for six seasons on the strength of
+   * about a over and a quarter a match — 151 balls across twenty one-day
+   * internationals in 2013/14, two wickets. Two overs a match is the bar: it
+   * is a spell, not a cameo, and it is well under what any real all-rounder
+   * sends down.
+   */
+  if (role === 'AR' && r.stats.bowlBalls < r.stats.matches * arBar(r.comp)) {
+    role = 'BAT'
+    demoted++
+  }
+
   if (KEEPER_GLOVES.get(squadId) === r.id && role !== 'WK') {
     role = 'WK'
     gloved++
@@ -486,6 +506,7 @@ for (const r of rows) {
 console.log(`  ${upgraded} scorecard names upgraded to full names`)
 console.log(`  ${skippedMinor} rows dropped for sides outside the recognised nations`)
 console.log(`  ${retyped} seasons re-typed to the bowler's career pace/spin reading`)
+console.log(`  ${demoted} all-rounders who never bowled a spell returned to batting`)
 console.log(`  ${gloved} players given the gloves so every squad has a keeper`)
 {
   const emitted = new Set(rosterRows.map((r) => r.player))

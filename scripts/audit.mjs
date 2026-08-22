@@ -153,6 +153,34 @@ const keeperless = [...squads.keys()].filter(
 ).length
 line('squads with no wicketkeeper', keeperless, pct(keeperless, squads.size))
 
+/*
+ * An all-rounder bowls a spell, not a cameo.
+ *
+ * Virat Kohli was one for six seasons on about a over and a quarter a match,
+ * which put a batter in a draft slot meant for a second bowling option. Two
+ * overs a match is the bar the build applies; this is where it is enforced.
+ */
+const AR_BAR = { T20L: 12, T20WC: 12, ODIWC: 18, TEST: 30 }
+const barFor = (squadId) => {
+  // formats arrives as the raw Postgres array literal, e.g. {"T20L","T20WC"}.
+  const raw = squads.get(squadId)?.formats ?? ''
+  const formats = String(raw).match(/[A-Z0-9]+/g) ?? ['T20L']
+  return Math.max(...formats.map((f) => AR_BAR[f] ?? 12))
+}
+const cameo = roster.filter((r) => r.role === 'AR' && r.bowlBalls < r.matches * barFor(r.squad))
+line('all-rounders who never bowled a spell', cameo.length, pct(cameo.length, roster.filter((r) => r.role === 'AR').length))
+if (cameo.length) flag(`${cameo.length} all-rounders bowl less than a spell`)
+
+/*
+ * A keeper does not bowl. One who does is a fielder who was handed the gloves
+ * because the heuristic could not tell a good pair of hands from a keeper —
+ * which is exactly how Kohli ended up behind the stumps for Bengaluru.
+ */
+const bowlingKeepers = roster.filter((r) => r.role === 'WK' && r.bowlBalls > r.matches * 6)
+line('keepers who bowled more than an over a match', bowlingKeepers.length, pct(bowlingKeepers.length, roster.filter((r) => r.role === 'WK').length))
+if (bowlingKeepers.length > roster.filter((r) => r.role === 'WK').length * 0.02)
+  flag(`${bowlingKeepers.length} wicketkeepers are bowling`)
+
 /* ── Ratings ───────────────────────────────────────────────────────────── */
 
 head('RATINGS')
