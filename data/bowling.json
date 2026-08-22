@@ -1,8 +1,8 @@
 {
- "built": "2026-08-22T17:05:33.885Z",
+ "built": "2026-08-22T21:17:31.226Z",
  "source": "English Wikipedia infoboxes, joined via Cricsheet and Wikidata identifiers",
  "asked": 3482,
- "typed": 1979,
+ "typed": 2077,
  "players": {
   "12314277": {
    "name": "Arshad Khan",
@@ -57,6 +57,12 @@
    "style": "Slow left-arm orthodox",
    "type": "SPIN",
    "article": "Harsh Dubey"
+  },
+  "28131839": {
+   "name": "MA Leask",
+   "style": "Right-arm off break",
+   "type": "SPIN",
+   "article": "Michael Leask"
   },
   "28496266": {
    "name": "CT Mumba",
@@ -130,6 +136,12 @@
    "type": "PACE",
    "article": "Adam Ball"
   },
+  "50250426": {
+   "name": "Asad Shafiq",
+   "style": "Right-arm off break",
+   "type": "SPIN",
+   "article": "Asad Shafiq"
+  },
   "50758325": {
    "name": "B Geeves",
    "style": "Right-arm fast bowling",
@@ -141,6 +153,12 @@
    "style": "Right-arm Fast bowling",
    "type": "PACE",
    "article": "Tim Bresnan"
+  },
+  "59792462": {
+   "name": "KM Jarvis",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Kyle Jarvis"
   },
   "61646132": {
    "name": "Samiullah Shenwari",
@@ -11877,6 +11895,576 @@
    "style": "Left-arm Seam bowling",
    "type": "PACE",
    "article": "Kenroy Peters"
+  },
+  "d74d1090": {
+   "name": "MTC Waller",
+   "style": "Right-arm leg break",
+   "type": "SPIN",
+   "article": "Max Waller"
+  },
+  "27c5a793": {
+   "name": "DJ Lamb",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Danny Lamb"
+  },
+  "eb1a5b03": {
+   "name": "TJ Wells",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Tom Wells (cricketer)"
+  },
+  "6a2fadd0": {
+   "name": "MW Pillans",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Mat Pillans"
+  },
+  "79c7041c": {
+   "name": "GT Griffiths",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Gavin Griffiths"
+  },
+  "bca21d18": {
+   "name": "DI Stevens",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Darren Stevens"
+  },
+  "e9d5218e": {
+   "name": "MT Coles",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Matt Coles"
+  },
+  "49b6c09f": {
+   "name": "JC Tredwell",
+   "style": "Right-arm off-spin",
+   "type": "SPIN",
+   "article": "James Tredwell"
+  },
+  "dddc811c": {
+   "name": "TD Groenewald",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Tim Groenewald"
+  },
+  "5ac8f17b": {
+   "name": "GJ Batty",
+   "style": "Right-arm Off spin",
+   "type": "SPIN",
+   "article": "Gareth Batty"
+  },
+  "e5652e3d": {
+   "name": "Imran Qayyum",
+   "style": "Left-arm orthodox spin",
+   "type": "SPIN",
+   "article": "Imran Qayyum"
+  },
+  "a37b5c0a": {
+   "name": "BO Coad",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Ben Coad"
+  },
+  "15101f12": {
+   "name": "ME Claydon",
+   "style": "Right-arm medium fast",
+   "type": "PACE",
+   "article": "Mitch Claydon"
+  },
+  "eddf25bd": {
+   "name": "CAJ Meschede",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Craig Meschede"
+  },
+  "bbbb7f1e": {
+   "name": "JE Poysden",
+   "style": "Right-arm leg break",
+   "type": "SPIN",
+   "article": "Josh Poysden"
+  },
+  "eb9cb105": {
+   "name": "SC Meaker",
+   "style": "Right-arm fast-medium",
+   "type": "PACE",
+   "article": "Stuart Meaker"
+  },
+  "9395f98e": {
+   "name": "CJ Haggett",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Calum Haggett"
+  },
+  "aeab0d4f": {
+   "name": "D Klein",
+   "style": "Left-arm Fast bowling",
+   "type": "PACE",
+   "article": "Dieter Klein"
+  },
+  "2223b920": {
+   "name": "KHD Barker",
+   "style": "Left-arm fast bowling",
+   "type": "PACE",
+   "article": "Keith Barker"
+  },
+  "d8b24492": {
+   "name": "K Carver",
+   "style": "Slow left-arm orthodox",
+   "type": "SPIN",
+   "article": "Karl Carver"
+  },
+  "5899dceb": {
+   "name": "CT Steel",
+   "style": "Right arm leg break",
+   "type": "SPIN",
+   "article": "Cameron Steel"
+  },
+  "b5781ac3": {
+   "name": "L Trevaskis",
+   "style": "Left-arm orthodox spin",
+   "type": "SPIN",
+   "article": "Liam Trevaskis"
+  },
+  "3766056b": {
+   "name": "BJ McCarthy",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Barry McCarthy"
+  },
+  "5239d782": {
+   "name": "NL Buck",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Nathan Buck"
+  },
+  "e3434f95": {
+   "name": "AM Ali",
+   "style": "Right-arm off break",
+   "type": "SPIN",
+   "article": "Aadil Ali"
+  },
+  "a7e8ff19": {
+   "name": "BD Cotton",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Ben Cotton (cricketer)"
+  },
+  "5e6d1a54": {
+   "name": "LJ Carey",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Lukas Carey"
+  },
+  "2a0d5d4a": {
+   "name": "Azharullah",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Azharullah"
+  },
+  "43205dad": {
+   "name": "HW Podmore",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Harry Podmore"
+  },
+  "7cdecc31": {
+   "name": "TE Barber",
+   "style": "Left-arm Fast bowling",
+   "type": "PACE",
+   "article": "Tom Barber (cricketer)"
+  },
+  "4167f30b": {
+   "name": "IG Holland",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Ian Holland"
+  },
+  "21764a38": {
+   "name": "A Hepburn",
+   "style": "Right-arm Pace bowling",
+   "type": "PACE",
+   "article": "Alex Hepburn (cricketer)"
+  },
+  "8479a24a": {
+   "name": "KK Jennings",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Keaton Jennings"
+  },
+  "dc670143": {
+   "name": "NJ Dexter",
+   "style": "Right arm Fast bowling",
+   "type": "PACE",
+   "article": "Neil Dexter"
+  },
+  "f54dbda7": {
+   "name": "WMH Rhodes",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Will Rhodes"
+  },
+  "4ae1755b": {
+   "name": "HC Brook",
+   "style": "Right-arm fast bowling",
+   "type": "PACE",
+   "article": "Harry Brook"
+  },
+  "8bf61e65": {
+   "name": "JA Brooks",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Jack Brooks (cricketer)"
+  },
+  "ad962377": {
+   "name": "WR Smith",
+   "style": "Right-arm off break",
+   "type": "SPIN",
+   "article": "Will Smith (cricketer)"
+  },
+  "025a092b": {
+   "name": "RH Patel",
+   "style": "Slow left-arm orthodox",
+   "type": "SPIN",
+   "article": "Ravi Patel (cricketer)"
+  },
+  "8f938a32": {
+   "name": "DJ Bell-Drummond",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Daniel Bell-Drummond"
+  },
+  "d66edc9a": {
+   "name": "IAA Thomas",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Ivan Thomas"
+  },
+  "d83a3bdc": {
+   "name": "TJ Lester",
+   "style": "Left-arm Fast bowling",
+   "type": "PACE",
+   "article": "Toby Lester (cricketer)"
+  },
+  "c1f6c27e": {
+   "name": "G Onions",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Graham Onions"
+  },
+  "85ebf2be": {
+   "name": "LC Norwell",
+   "style": "Right arm Fast bowling",
+   "type": "PACE",
+   "article": "Liam Norwell"
+  },
+  "93e06301": {
+   "name": "PD Trego",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Peter Trego"
+  },
+  "ba9258a7": {
+   "name": "TB Abell",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Tom Abell"
+  },
+  "b3544c5d": {
+   "name": "BA Hutton",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Brett Hutton"
+  },
+  "74d92a39": {
+   "name": "AY Karim",
+   "style": "Slow left-arm orthodox",
+   "type": "SPIN",
+   "article": "Aasif Karim"
+  },
+  "51080a1f": {
+   "name": "JF Kloppenburg",
+   "style": "Right-arm medium",
+   "type": "PACE",
+   "article": "Feiko Kloppenburg"
+  },
+  "12b59324": {
+   "name": "RP Lefebvre",
+   "style": "Right-arm medium",
+   "type": "PACE",
+   "article": "Roland Lefebvre"
+  },
+  "f44af07f": {
+   "name": "C White",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Craig White"
+  },
+  "25020f9d": {
+   "name": "AR Caddick",
+   "style": "Right-arm fast-medium",
+   "type": "PACE",
+   "article": "Andy Caddick"
+  },
+  "0882b3f1": {
+   "name": "RJ van Vuuren",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Rudie van Vuuren"
+  },
+  "fc54ef7a": {
+   "name": "BB Seebaran",
+   "style": "Slow left-arm orthodox",
+   "type": "SPIN",
+   "article": "Barry Seebaran"
+  },
+  "f011dfa3": {
+   "name": "RC Irani",
+   "style": "Right arm Medium pace bowling",
+   "type": "PACE",
+   "article": "Ronnie Irani"
+  },
+  "9ff7f691": {
+   "name": "SF Burger",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Sarel Burger"
+  },
+  "1d5dd8a6": {
+   "name": "N Ifill",
+   "style": "Right-arm medium",
+   "type": "PACE",
+   "article": "Nicholas Ifill"
+  },
+  "047945ae": {
+   "name": "BO van Rooi",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Burton van Rooi"
+  },
+  "656202a7": {
+   "name": "DA Marillier",
+   "style": "Right-arm offbreak",
+   "type": "SPIN",
+   "article": "Dougie Marillier"
+  },
+  "717e803a": {
+   "name": "TCB Fernando",
+   "style": "Right-arm fast-medium",
+   "type": "PACE",
+   "article": "Charitha Buddhika"
+  },
+  "9f62b897": {
+   "name": "MKGCP Lakshitha",
+   "style": "Right-arm fast-medium",
+   "type": "PACE",
+   "article": "Chamila Gamage"
+  },
+  "3165bc1b": {
+   "name": "Krishna Chandran",
+   "style": "Right-arm medium",
+   "type": "PACE",
+   "article": "Krishna Chandran"
+  },
+  "5cb078d6": {
+   "name": "HK Badani",
+   "style": "Slow left-arm orthodox",
+   "type": "SPIN",
+   "article": "Hemang Badani"
+  },
+  "a5c5a126": {
+   "name": "Mohammad Khalil",
+   "style": "Left-arm medium",
+   "type": "PACE",
+   "article": "Mohammad Khalil (cricketer)"
+  },
+  "20fbf68c": {
+   "name": "Reon King",
+   "style": "Right-arm fast-medium",
+   "type": "PACE",
+   "article": "Reon King"
+  },
+  "f3bde2b3": {
+   "name": "KDK Vithanage",
+   "style": "Legbreak",
+   "type": "SPIN",
+   "article": "Kithuruwan Vithanage"
+  },
+  "b863eae9": {
+   "name": "GJ Rennie",
+   "style": "Slow left-arm orthodox",
+   "type": "SPIN",
+   "article": "Gavin Rennie"
+  },
+  "1cb64b3c": {
+   "name": "CB Lambert",
+   "style": "Left-arm off-break",
+   "type": "SPIN",
+   "article": "Clayton Lambert"
+  },
+  "d5afc103": {
+   "name": "RO Hinds",
+   "style": "Slow left-arm orthodox",
+   "type": "SPIN",
+   "article": "Ryan Hinds"
+  },
+  "ae1bd901": {
+   "name": "PR Adams",
+   "style": "Left-arm unorthodox spin",
+   "type": "SPIN",
+   "article": "Paul Adams (cricketer)"
+  },
+  "0ec9e2c4": {
+   "name": "Mohammad Talha",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Mohammad Talha"
+  },
+  "c3b93a03": {
+   "name": "J Blackwood",
+   "style": "Right arm off-break",
+   "type": "SPIN",
+   "article": "Jermaine Blackwood"
+  },
+  "c8574282": {
+   "name": "MD Craig",
+   "style": "Right-arm off break",
+   "type": "SPIN",
+   "article": "Mark Craig"
+  },
+  "90d6cdea": {
+   "name": "TB de Bruyn",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Theunis de Bruyn"
+  },
+  "81d06fb5": {
+   "name": "CJ Sayers",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Chadd Sayers"
+  },
+  "6843a783": {
+   "name": "Shan Masood",
+   "style": "Right-arm fast bowling",
+   "type": "PACE",
+   "article": "Shan Masood"
+  },
+  "5f966ec0": {
+   "name": "JA Raval",
+   "style": "Right-arm leg break",
+   "type": "SPIN",
+   "article": "Jeet Raval"
+  },
+  "e3dd0d8e": {
+   "name": "R Kaia",
+   "style": "Right-arm off-spin",
+   "type": "SPIN",
+   "article": "Roy Kaia"
+  },
+  "bbc192a4": {
+   "name": "Sajid Khan",
+   "style": "Right-arm Off spin",
+   "type": "SPIN",
+   "article": "Sajid Khan (cricketer)"
+  },
+  "f09fc8fb": {
+   "name": "Tabish Khan",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Tabish Khan"
+  },
+  "8a75e999": {
+   "name": "Babar Azam",
+   "style": "Right-arm off break",
+   "type": "SPIN",
+   "article": "Babar Azam"
+  },
+  "d0cc2738": {
+   "name": "KN Peiris",
+   "style": "Right-arm Off spin",
+   "type": "SPIN",
+   "article": "Nishan Peiris"
+  },
+  "42b34cb1": {
+   "name": "V Masekesa",
+   "style": "Right arm leg break",
+   "type": "SPIN",
+   "article": "Vincent Masekesa"
+  },
+  "f8929fe0": {
+   "name": "K Matigimu",
+   "style": "Right-arm fast",
+   "type": "PACE",
+   "article": "Kundai Matigimu"
+  },
+  "309feb16": {
+   "name": "O Shields",
+   "style": "Right-arm Fast Bowling",
+   "type": "PACE",
+   "article": "Ojay Shields"
+  },
+  "1c06d60a": {
+   "name": "MD Rae",
+   "style": "Right-arm medium-fast",
+   "type": "PACE",
+   "article": "Michael Rae"
+  },
+  "bb194908": {
+   "name": "Ali Usman",
+   "style": "Slow left-arm orthodox",
+   "type": "SPIN",
+   "article": "Ali Usman"
+  },
+  "30e48600": {
+   "name": "DM Washington",
+   "style": "Right-arm fast",
+   "type": "PACE",
+   "article": "Dwight Washington"
+  },
+  "5d02a793": {
+   "name": "Anwar Hossain Monir",
+   "style": "Right-arm fast-medium",
+   "type": "PACE",
+   "article": "Anwar Hossain Monir"
+  },
+  "7d415ea5": {
+   "name": "RT Ponting",
+   "style": "Right-arm Fast bowling",
+   "type": "PACE",
+   "article": "Ricky Ponting"
+  },
+  "53fa8a73": {
+   "name": "Shahid Nazir",
+   "style": "Right-arm fast-medium",
+   "type": "PACE",
+   "article": "Shahid Nazir"
+  },
+  "de8cce37": {
+   "name": "VVS Laxman",
+   "style": "Right-arm off spin",
+   "type": "SPIN",
+   "article": "VVS Laxman"
+  },
+  "97e3e14f": {
+   "name": "WRS de Silva",
+   "style": "Left-arm medium-fast",
+   "type": "PACE",
+   "article": "Sujeewa de Silva"
+  },
+  "f144d99b": {
+   "name": "Yasir Hameed",
+   "style": "Right-arm offbreak",
+   "type": "SPIN",
+   "article": "Yasir Hameed"
+  },
+  "3df563bc": {
+   "name": "AS Jaggernauth",
+   "style": "Right-arm offbreak",
+   "type": "SPIN",
+   "article": "Amit Jaggernauth"
   }
  }
 }

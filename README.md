@@ -220,7 +220,8 @@ Two corrections matter, and both were found by measuring rather than by eye:
 
 ### Facts a scorecard does not state
 
-Three things have to be inferred, and each is validated:
+Three things a scorecard leaves out. One is now looked up rather than inferred;
+the other two are inferred and validated.
 
 - **Nationality** drives the overseas cap, so a wrong one silently lets a fifth
   import into an XI. Caps settle 2,551 players — a man who has represented a
@@ -237,18 +238,36 @@ Three things have to be inferred, and each is validated:
   Afghan can appear to hold a cap. Without Wikidata, Rashid Khan came out Indian
   and walked into an Indian XI without using an import slot.
 
-- **Pace or spin** is read from where in the innings a bowler is used, decided
-  once for a whole career rather than season by season — nobody changes their
-  action between years, and judged annually 35% of bowlers came out as both.
-  Only T20 cricket counts toward the reading, because "middle overs" is a
-  limited-overs idea: measured across his Tests, Ashwin looks like a quick. The
-  threshold was validated against 29 bowlers of known type, and got all 29 right.
-  **99.1%** of bowlers are now consistent.
+- **Pace or spin** used to be read from where in the innings a bowler is used.
+  That is a proxy, and a proxy is wrong at the edges: it made Ajit Agarkar a
+  spinner, because a fast-medium containment role is bowled in exactly the overs
+  a spinner bowls. Moving the threshold only changes who it is wrong about.
 
-- **Who kept wicket** is read from dismissals. Stumpings alone missed every
-  keeper who went a season without one, leaving a quarter of squads with nobody
-  to take the gloves; catches count too, and the best candidate in each squad
-  keeps. **99.7%** of squads have a keeper.
+  So it is asked instead. `npm run bowling` takes Cricsheet's identifier for a
+  player, reads the Cricinfo key beside it, turns that into an English Wikipedia
+  article through Wikidata, and reads the style out of the infobox in words —
+  "right-arm fast medium", "leg spin". **2,077 of 3,482 bowlers** are typed from
+  their own article, written to `data/bowling.json` and committed, so the answer
+  is auditable and the build needs no network. A re-run only asks about players
+  it has no answer for.
+
+  Cricsheet has no bowling-style field of its own: its register is identifiers
+  and its match data is deliveries. It supplies the identity, Wikipedia the
+  fact. Everyone still unanswered keeps the middle-over reading, whose threshold
+  now sits at 0.62 — in the gap between every genuine spinner (0.64 and up) and
+  every quick (0.58 and below). Fourteen bowlers nobody argues about are an
+  audit check so it stays there.
+
+- **Who kept wicket** is read from dismissals, and only a stumping proves it —
+  nobody but the keeper makes one. Scoring catches alongside them put Virat
+  Kohli behind the stumps for Bengaluru in 2024: 464 catches, not one stumping
+  in a hundred seasons, and a formula that cannot tell a brilliant outfielder
+  from a keeper. So stumpings are proof rather than weight, read across a whole
+  career, and catches only rank the men who have already proved they keep. Among
+  those, the one who has kept most often: ranking by catches in a single season
+  found the best pair of hands, which handed Bangladesh's 2019 T20 gloves to
+  Mahmudullah while Mushfiqur Rahim stood in the same squad as a batter. **Every
+  squad has a keeper**, and 12 of 2,766 bowl more than an over a match.
 
 ### Where it lives
 
@@ -290,13 +309,33 @@ collapsed that way before it was caught.
 ### Building and checking it
 
 ```bash
-npm run ingest    # download Cricsheet, aggregate ball-by-ball into ratings
-npm run nations   # nationality and full names, by identifier join to Wikidata
-npm run archive   # write supabase/archive.sql
-npm run db:check  # run schema + archive against a real Postgres, in process
-npm run audit     # is the cricket right?
-npm run db:push   # apply to Supabase
+npm run ingest       # download Cricsheet, aggregate ball-by-ball into ratings
+npm run nations      # nationality and full names, by identifier join to Wikidata
+npm run bowling      # each bowler's stated style, from their own article
+npm run archive      # write supabase/archive.sql
+npm run db:push      # apply to Supabase
 ```
+
+Five checks, each catching a different kind of wrong:
+
+```bash
+npm run audit        # is the cricket right? rates, distributions, outliers
+npm run rows:check   # all 42,178 roster rows, 19 rules each, failures printed
+npm run cards:check  # a thousand scorecards, hunting for impossible cricket
+npm run db:check     # the SQL against a real Postgres — and as a non-owner
+npm run live:check   # a whole live draft played with nobody watching
+```
+
+`audit` reports rates, which is the right shape for judging a dataset and the
+wrong shape for trusting a row — so `rows:check` puts every row through every
+invariant and prints what fails instead of a percentage. `cards:check` reads a
+thousand match cards looking for cricket a scorer would refuse to write down: it
+found eleven dismissals against ten wickets, and 4.4 overs in a twenty-over
+game. `db:check` applies each file twice, over the *previous* release's shape,
+and reads the tables as a non-owner — because a fresh database run by its owner
+has no history and bypasses row-level security, which is how three separate
+bugs reached production. `live:check` exists because a backgrounded browser tab
+suspends network IO, so a draft driven through one proves nothing.
 
 `db:check` runs the SQL against Postgres compiled to WebAssembly — same parser,
 same constraints, nothing to install. It applies the schema twice and the archive
@@ -312,6 +351,55 @@ Two of the audit's own checks were wrong before they were right: it compared car
 figures across formats, where a strike rate of 60 is a fine Test innings and a
 dreadful T20 one; and it called "conceded runs off no legal delivery" impossible,
 which an over of wides does perfectly legally.
+
+## Playing against people
+
+Two modes, different in kind rather than in degree.
+
+**Leagues** are asynchronous, and are the ones that fit how the game gets
+shared. A host settles the rules once, plays their own season, and sends a link;
+everybody who opens it plays those exact rules whenever they like, and the best
+season by the deadline wins. Nobody has to be online at the same time, which
+matters because the arguing happens in a group chat.
+
+The rules are the league, so the database keeps them. Every rule column on
+`leagues` has a counterpart on `results`, and a trigger refuses any season whose
+settings disagree — playing on Easy in a Hard league is rejected at the write
+rather than noticed afterwards. Three more things it holds rather than the
+interface: the scoring rule (whether a replay replaces your score or has to beat
+it) is chosen once and locked, because a host who can change the terms while
+losing is not running a league; the host must have played before anybody can
+join, so they cannot watch the field land and tune their own run against it; and
+a league is readable only by its members, so the standings of every league on the
+site are not one unfiltered request away.
+
+**Live drafts** are up to four people at once, taking turns out of one shared
+pool. A squad somebody else has taken is gone — that is what makes it a draft
+rather than four solo games sharing a clock. Order snakes 1-2-3-4-4-3-2-1,
+because straight rotation hands the first seat the best of every round.
+
+A room stores almost nothing. Which squad comes up on pick *n* is computed from
+the seed and *n*; whose turn it is, is snake order from *n*; when that turn
+expires is the previous pick's timestamp plus the clock. So there is no mutable
+state for two clients to disagree about, and reconnecting is fetching the picks
+and replaying them.
+
+That is also what lets a seat keep drafting when somebody leaves. The bot's
+choice is deterministic — best available for the neediest slot, ties broken by
+identifier — so every client works out the same pick, and the primary key on
+`(room, round, pick_no)` means the first write wins and the rest bounce off. No
+referee, no server. Empty seats become bots the moment the host starts, because a
+seat nobody is sitting in is not deciding.
+
+A room is a session, not one draft: when the XIs are full each seat plays its
+season, the four are set against each other, and everybody has thirty seconds to
+say whether they want another. Saying nothing is exactly what a closed tab looks
+like, so anybody who does not is out.
+
+Neither mode's seasons appear on the public ladder or move your match rating.
+They were played under rules somebody else chose, against a field who agreed to
+them; ranking them against strangers who did not is not a comparison. They still
+count toward a career, because they were still played.
 
 ## Rankings and ladders
 

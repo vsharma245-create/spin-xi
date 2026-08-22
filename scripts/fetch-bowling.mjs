@@ -119,8 +119,21 @@ console.log(`\n  ${article.size} have an English Wikipedia article`)
 
 /* ── Article → the words in the infobox ────────────────────────────────── */
 
-const record = {}
-const titles = [...article.entries()]
+/*
+ * Resume rather than start again.
+ *
+ * A re-run existed only to pick up articles the API refused, and it refetched
+ * all two thousand of them to do it — ten minutes to collect a hundred. What
+ * is already answered is already answered.
+ */
+let record = {}
+try {
+  record = JSON.parse(await readFile(OUT, 'utf8')).players ?? {}
+  console.log(`  ${Object.keys(record).length} already on record; only the rest are asked for`)
+} catch {
+  /* first run */
+}
+const titles = [...article.entries()].filter(([id]) => !record[id])
 let asked = 0
 let refused = 0
 for (let i = 0; i < titles.length; i += 50) {
@@ -176,7 +189,7 @@ for (let i = 0; i < titles.length; i += 50) {
     }
   }
   asked += slice.length
-  process.stdout.write(`\r  infoboxes: ${Object.keys(record).length} typed of ${asked} read`)
+  process.stdout.write(`\r  infoboxes: ${Object.keys(record).length} typed, ${asked} of ${titles.length} read`)
   // Kind to a free API that is doing us a favour.
   await sleep(900)
 }
