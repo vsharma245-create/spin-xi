@@ -4,7 +4,11 @@ A cricket drafting game. Spin for a historical squad, draft one
 player, build an XI, then simulate a tournament and chase a perfect unbeaten run.
 
 Not fantasy cricket, not a stats site — a historical drafting game where the
-limited random choices *are* the strategy.
+limited random choices *are* the strategy. Play it alone, or against people you
+know: a league everyone drafts into on the same locked rules, or a live draft
+where four of you take turns out of one shared pool.
+
+Live at **[www.spin-xi.com](https://www.spin-xi.com)**.
 
 ```bash
 npm install
@@ -139,13 +143,27 @@ across the order on a skewed curve, because innings are lumpy: somebody goes
 big, somebody gets a jaffa. Nothing on the card can disagree with the scoreboard,
 because the card explains a result the simulator has already decided.
 
+**A Test is four innings.** Two visits to the crease a side, so a first-innings
+lead and a fourth-innings chase are both on the card. The simulator settles a
+side's runs and wickets for the match and the card splits them, weighted toward
+the first innings, so it still cannot disagree with the score. Where the side
+batting first leads by more than the other made in total, the match ends in
+three, as a win by an innings does.
+
 **The card adds up.** How long an innings lasted, in deliveries, is decided once,
 and the overs figure, the balls each batter faced and the overs each bowler sent
 down are all derived from that one number. They used to be invented separately,
 which is how a card could report twenty overs, five bowlers of four each, and a
 batting side that faced ninety-four balls between them — with every strike rate
 inflated to match. Cricket fixes the deliveries and lets the runs vary; so does
-the card. Verified across 800 innings with no discrepancy.
+the card.
+
+`npm run cards:check` reads a thousand cards across all four formats looking for
+cricket a scorer would refuse to write down, and it has caught real things: a
+batter three not out off one ball and given lbw — the single delivery he faced
+was the one that got him — eleven dismissals against ten wickets, because the man
+stranded at the other end was given an entry too, and 4.4 overs in a twenty-over
+game.
 
 Tap any match — mid-simulation from the live feed, or afterwards from the match
 log — to read it back. The simulation runs at 1×, 2× or skip-to-end, can be
@@ -421,9 +439,12 @@ that decides who reaches a knockout was decided by neither runs nor overs.
 
 **Ladders are per tournament.** One board cannot rank a fourteen-game league
 against a twelve-Test championship: sorted on a raw win column, the longer
-season wins before anybody drafts a player. Each tournament keeps its own table,
-and the Global / India / Friends tabs cut across whichever one you are looking
-at.
+season wins before anybody drafts a player. Each tournament keeps its own table, and each
+can be read all-time or for today alone. There were Global / India / Friends
+tabs above them for a while; they filtered nothing, showing the same field
+whichever was pressed, and a control that does nothing is worse than an absent
+one because the player concludes the data is wrong rather than the feature
+missing.
 
 **Within a board you are ranked on points**, built from the three things a
 cricket season actually produces:
@@ -507,15 +528,26 @@ a T20 League season scores more than a T20 World Cup simply because it is longer
 earning it in points rather than in appearances. Levels show beside every name
 on a ladder, so a board reads as a field of players rather than a list of scores.
 
-**Your record** lives in `localStorage` under `spinxi:v1`, kept apart by the
-things that make two runs incomparable: **by tournament**, **by rating mode**
-(season form or prime) and **by difficulty**. Each keeps its own drafts, W–L,
-trophies, runs, wickets and best points. Career totals hid what they were made
-of — a hundred wins says nothing about whether they came in T20 leagues on Easy
-or Test championships with the ratings hidden.
+**Your record** lives on the server, against an account made silently on your
+first visit, and it is kept apart by the things that make two runs
+incomparable: **by tournament**, **by rating mode** (season form or prime) and
+**by difficulty**. Each keeps its own drafts, W–L, trophies, runs, wickets and
+best points. Career totals hid what they were made of — a hundred wins says
+nothing about whether they came in T20 leagues on Easy or Test championships
+with the ratings hidden.
 
-There is still **no server**, so the rival rows are mock data and only your own
-row is real. The screen says so.
+Every row on every board is a season somebody played. Results are stored with
+the seed and the eleven that produced them, and the simulation is deterministic,
+so any run on a ladder can be recomputed and checked. For a while the screen
+said the rivals were invented and only your own row real — that stopped being
+true when the boards started reading from the database, and a game that
+disowns its own leaderboard is worse than one without a leaderboard.
+
+**A public number only moves on seasons you chose the settings for.** League and
+live-draft seasons stay off the ladder and out of your match rating: they were
+played under rules somebody else set, against a field who agreed to them.
+Ranking them against strangers who did not is not a comparison. They still count
+toward a career and toward your level, because they were still played.
 
 ## Look
 
@@ -545,15 +577,19 @@ itself, seam and all, and doubles as the favicon.
 
 ```
 src/
-  data/       repository (the fetch), squads (the query layer), challenges,
-              nations, team identity, mock ladder
-  game/       types, draft, opponents, sim, card, review, trophy, storage
+  data/       repository (the fetch), squads (the query layer), account,
+              records, leagues, live, challenges, nations, team identity
+  game/       types, draft, opponents, sim, card, review, trophy, live
   components/ PlayerCard, TeamSheet, MatchView, Review, SpinReel, YearRange,
-              ArchiveGate, Field, icons and crests, ui kit
-scripts/      ingest, nations, archive, audit, db-check, db-push
-supabase/     schema.sql, archive.sql (generated)
+              ArchiveGate, ClaimAccount, HandleEditor, AbandonDraft, Field,
+              icons and crests, ui kit
   screens/    Home, Play (setup→draft→XI→sim→result→trophy), Daily, Leaderboard,
-              Profile
+              Profile, Multiplayer, LeaguePage, LiveDraft, Legal
+scripts/      ingest, nations, bowling, challenges, archive,
+              audit, row-probe, card-probe, live-probe, db-check, db-push
+supabase/     schema.sql, archive.sql, challenges.sql   (generated)
+              players.sql, analytics.sql, multiplayer.sql, live.sql
+data/         bowling.json — each bowler's stated style, committed
 ```
 
 One draft engine, one simulation module, one design system. `Play.tsx` owns the
@@ -561,8 +597,15 @@ game flow as a phase machine; every other screen is a leaf.
 
 The game modules split by job: `opponents.ts` turns squads into rated sides,
 `sim.ts` decides results, `card.ts` explains them, `review.ts` reads the whole
-tournament back as prose, `trophy.ts` runs the invitational. `types.ts` holds
-every shared type — including `Opponent` — so nothing imports in a circle.
+tournament back as prose, `trophy.ts` runs the invitational, `live.ts` holds the
+parts of a live draft every client works out for itself. `types.ts` holds every
+shared type — including `Opponent` — so nothing imports in a circle.
+
+The SQL splits by what it owns. `schema.sql` and `archive.sql` are the cricket
+and are rebuilt wholesale; `players.sql` holds accounts and results and is never
+dropped; `analytics.sql`, `multiplayer.sql` and `live.sql` only ever add. They
+apply in that order, and `db-check` runs each one twice — the second time over
+the previous release's shape.
 
 ## Notes for whoever picks this up
 
@@ -571,9 +614,19 @@ every shared type — including `Opponent` — so nothing imports in a circle.
   screen and deadlocks `mode="wait"` transitions. Nothing in the app gates
   functionality on an animation completing — the spin reveal runs off a timer,
   not an animation callback — but don't reintroduce exit-gated unmounting.
-- The archive comes from Supabase over plain `fetch`; there is no auth, no user
-  accounts and no writes. Progress lives in `localStorage` under `spinxi:v1`, and
-  the leaderboard is static mock data with your own daily result spliced in.
+- Everything speaks to Supabase over plain `fetch` — PostgREST and GoTrue
+  directly, no SDK, which keeps 400 KB of realtime and storage code out of a
+  bundle that already carries a megabyte of cricket. An account is created
+  silently on the first visit, because a three-minute game that asks you to sign
+  up before you have seen it loses most of the people it asks; linking Google
+  later is how a record survives a cleared browser. Results, ladders, profiles
+  and leagues are all server-side. Nothing but the session token and the cached
+  archive lives in the browser.
+- **Empty response bodies are answers, not errors.** PostgREST replies to a write
+  with `Prefer: return=minimal` with no body — 204 for a PATCH but 201 for a
+  POST — and handling only the first meant ten writes across the app succeeded on
+  the server and threw on the client, into whichever catch was nearest. Most were
+  fire-and-forget, so nothing ever said so.
 - Daily challenges are deterministic from the browser date: fixed draw sequences
   in `data/challenges.ts`, and the tournament is seeded so the same XI always
   plays out the same way. Every `rand()` call in `sim.ts` is part of that
@@ -596,8 +649,25 @@ every shared type — including `Opponent` — so nothing imports in a circle.
   `fetch-nations.mjs` were quietly wrong because of it — Pakistan came back with
   3,254 claims one run and 1,205 the next. It now sends the exact list of
   identifiers in batches, so it can state how many of a known list came back.
-- `rosters.ts` is the old hand-written archive. Nothing imports it any more; it
-  survives only as a source of full names for `npm run archive`.
+- **A fresh database run by its owner hides three whole classes of bug.** It has
+  no history, so `create table if not exists` silently skips every column added
+  after the first release. It bypasses row-level security, so a policy that
+  recurses infinitely still passes. And its owner has every permission, so a
+  trigger with no right to do its job still does it. All three reached
+  production. `db:check` now applies each file over the previous shape and reads
+  the tables as a non-owner role.
+- **A backgrounded browser tab suspends network IO.** Two attempts to drive a
+  live draft through one died halfway with `ERR_NETWORK_IO_SUSPENDED` and proved
+  nothing. `npm run live:check` runs the same functions the four clients run
+  against the archive in an in-process Postgres — no tab, no throttling. It is
+  what would have caught the deadlock, where a seat with two slots left was
+  offered a side that fitted neither and, the order being fixed by the seed,
+  nobody could move.
+- **Testing the database proves the rules are enforced, not that the game
+  reaches them.** The schema refused a wrong-difficulty season correctly from the
+  day it was written, while the interface walked players into drafting eleven
+  players and simulating a whole season before the write was refused. Most of the
+  bugs worth finding here were found by playing.
 
 SPIN XI is an independent fan-made prototype, unaffiliated with any cricket
 board, league, franchise or player association.
