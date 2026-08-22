@@ -4,7 +4,7 @@ import { Screen } from '../components/ui'
 import { todaysChallenge } from '../data/challenges'
 import { makeRng, newDraft } from '../game/draft'
 import { loadDaily, saveResult, track } from '../data/records'
-import { loadLeague, openLeague } from '../data/leagues'
+import { loadLeague } from '../data/leagues'
 import type { League } from '../data/leagues'
 import type { DraftConfig, DraftState, Format, TournamentResult } from '../game/types'
 import ChampionsTrophy from './ChampionsTrophy'
@@ -224,12 +224,7 @@ export default function Play() {
       worldTeams: state?.config.worldTeams ?? true,
       durationMs: took,
       leagueId: league?.id ?? null,
-    })
-      .then(() => {
-        // The league opens to everyone else the moment its host has a season
-        // in it, which is what stops them playing against a known target.
-        if (league) return openLeague(league.id)
-      }).catch(() => {
+    }).catch(() => {
       /* Offline, or signed out. The local copy stands and the ladder misses
          one row — worth far less than blocking the result screen on a POST. */
     })

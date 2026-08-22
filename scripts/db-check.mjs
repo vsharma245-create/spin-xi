@@ -189,6 +189,34 @@ try {
     console.log(`  ${blockedJoin ? 'ok  ' : 'FAIL'} a season from someone who never joined is refused`)
     if (!blockedJoin) bad++
 
+    /*
+     * A league opens because the host has played, not because a flag was set.
+     * The flag version failed in production exactly once and silently: the
+     * season saved, the write that followed it did not, and the link stayed
+     * shut with nothing to say why.
+     */
+    {
+      const solo = '66666666-6666-6666-6666-666666666666'
+      await db.exec(`
+        insert into auth.users (id) values ('${solo}') on conflict do nothing;
+        insert into profiles (id, handle) values ('${solo}', 'SOLOHOST') on conflict do nothing;
+        insert into leagues (code, name, host, format, preset_id, rating_mode, difficulty,
+                             world_teams, scoring)
+        values ('shut01', 'Not Played Yet', '${solo}', 'T20L', 'BALANCED', 'SEASON', 'NORMAL',
+                true, 'best');
+        insert into league_entries (league_id, player)
+          select id, '${solo}' from leagues where code = 'shut01';
+      `)
+      const shut = await db.query(`select is_open from league_preview('shut01')`)
+      const open = await db.query(`select is_open from league_preview('abc123')`)
+      const right = shut.rows[0].is_open === false && open.rows[0].is_open === true
+      console.log(
+        `  ${right ? 'ok  ' : 'FAIL'} a league opens on the host's season, not a flag ` +
+          `(unplayed ${shut.rows[0].is_open}, played ${open.rows[0].is_open})`,
+      )
+      if (!right) bad++
+    }
+
     // The rules cannot be rewritten once people are playing to them.
     let locked = false
     try { await db.exec(`update leagues set difficulty = 'EASY' where code = 'abc123'`) } catch { locked = true }

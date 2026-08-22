@@ -143,15 +143,6 @@ export async function myLeagues(): Promise<League[]> {
   return api<League[]>(`leagues?select=*&id=in.(${ids})&order=created_at.desc`)
 }
 
-/** Mark that the host has played, which is what opens the league to everyone. */
-export async function openLeague(leagueId: string): Promise<void> {
-  await api(`leagues?id=eq.${leagueId}&host_played_at=is.null`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ host_played_at: new Date().toISOString() }),
-  })
-}
-
 /** How long is left, in words, or null when a league has no deadline. */
 export function timeLeft(closesAt: string | null): string | null {
   if (!closesAt) return null

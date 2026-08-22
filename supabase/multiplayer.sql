@@ -56,8 +56,13 @@ create table if not exists leagues (
   signed_in_only boolean not null default false,
 
   /*
-   * The host has to play before anybody can join. Otherwise they can watch
-   * everyone else's seasons land and tune their own run against them.
+   * Kept for the record, but nothing depends on it.
+   *
+   * Whether a league is open is not a flag somebody remembers to set — it is
+   * whether the host has a season in it, which the seasons themselves already
+   * say. Written as a flag it was one fallible request away from a league that
+   * nobody could join, and that is exactly what happened: the season saved,
+   * the flag did not, and the link stayed shut with no sign of why.
    */
   host_played_at timestamptz,
 
@@ -160,7 +165,7 @@ language sql security definer set search_path = public as $$
          l.difficulty, l.from_year, l.to_year, l.world_teams, l.scoring,
          l.closes_at, l.signed_in_only,
          (select count(*)::int from league_entries e where e.league_id = l.id),
-         l.host_played_at is not null
+         exists (select 1 from results r where r.league_id = l.id and r.player = l.host)
            and (l.closes_at is null or now() <= l.closes_at)
            and (l.max_players is null
                 or (select count(*) from league_entries e where e.league_id = l.id) < l.max_players)
@@ -180,7 +185,7 @@ begin
     return l.id;
   end if;
 
-  if l.host_played_at is null then
+  if not exists (select 1 from results r where r.league_id = l.id and r.player = l.host) then
     raise exception 'The host has not played yet.';
   end if;
   if l.closes_at is not null and now() > l.closes_at then

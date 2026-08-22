@@ -144,7 +144,7 @@ export default function LeaguePage() {
            * prevent: sending it out, watching the field land, and playing last
            * against a known target.
            */}
-          {!league.data?.host_played_at ? (
+          {!preview.data?.is_open ? (
             <div className="mt-6">
               <Button size="lg" full onClick={() => navigate(`/play?league=${code}`)}>
                 Play your season →
@@ -222,7 +222,7 @@ export default function LeaguePage() {
         </div>
       </div>
 
-      {inIt && league.data?.host_played_at && (
+      {inIt && preview.data?.is_open && (
         <div className="mt-5 rounded-card border border-white/[0.06] px-3.5 py-3">
           <span className="label text-moss">the link</span>
           <p className="mt-1 break-all text-[11.5px] text-cream-dim">{link}</p>
