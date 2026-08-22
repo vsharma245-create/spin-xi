@@ -524,6 +524,26 @@ try {
       if (!opened) bad++
     }
 
+    // Starting with empty seats should not cost a clock per empty seat.
+    {
+      const half = (await db.query(`
+        insert into draft_rooms (code, host, seed, format, preset_id, rating_mode, difficulty,
+                                 seats, pick_seconds, status)
+        values ('live06', '${a}', 9, 'T20L', 'BALANCED', 'SEASON', 'NORMAL', 4, 120, 'lobby')
+        returning id`)).rows[0].id
+      await db.exec(`
+        insert into draft_seats (room_id, seat, player) values
+          ('${half}', 0, '${a}'), ('${half}', 1, '${b}'), ('${half}', 2, null), ('${half}', 3, null);
+        set request.jwt.claim.sub = '${a}';
+      `)
+      await db.query(`select draft_begin('${half}')`)
+      const bots = (await db.query(
+        `select count(*)::int as n from draft_seats where room_id = '${half}' and is_bot`,
+      )).rows[0].n
+      console.log(`  ${Number(bots) === 2 ? 'ok  ' : 'FAIL'} empty seats become bots when the draft starts (${bots})`)
+      if (Number(bots) !== 2) bad++
+    }
+
     /* ── Leaving, and being called off ── */
     {
       const gone = (await db.query(`

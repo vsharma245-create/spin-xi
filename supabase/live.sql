@@ -459,3 +459,37 @@ begin
     grant execute on function draft_ready(uuid), draft_advance(uuid) to anon, authenticated;
   end if;
 end $$;
+
+/**
+ * Start the draft, and hand every empty seat to the bot as it begins.
+ *
+ * A seat nobody is sitting in is not "deciding" — but it was treated as
+ * though it were, so a four-seat room started by two people burned a full
+ * clock per empty seat, every round, before anything happened. They are
+ * flagged at the off instead, which makes them playable immediately by the
+ * same rule that covers somebody who walks out.
+ */
+create or replace function draft_begin(room uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare r draft_rooms;
+begin
+  select * into r from draft_rooms where id = room;
+  if not found then raise exception 'No such draft.'; end if;
+  if r.host <> auth.uid() then raise exception 'Only the host can start it.'; end if;
+  if r.status <> 'lobby' then return r.status; end if;
+
+  if (select count(*) from draft_seats s where s.room_id = room and s.player is not null) < 1 then
+    raise exception 'Nobody is sitting down.';
+  end if;
+
+  update draft_seats set is_bot = true where room_id = room and player is null;
+  update draft_rooms set status = 'drafting', started_at = now() where id = room;
+  return 'drafting';
+end $$;
+
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    grant execute on function draft_begin(uuid) to anon, authenticated;
+  end if;
+end $$;

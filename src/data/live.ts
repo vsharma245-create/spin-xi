@@ -161,11 +161,11 @@ export async function abandonRoom(roomId: string): Promise<void> {
   })
 }
 
+/** Start it. Empty seats become bots at the off rather than stalling a round. */
 export async function begin(roomId: string): Promise<void> {
-  await api(`draft_rooms?id=eq.${roomId}&status=eq.lobby`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ status: 'drafting', started_at: new Date().toISOString() }),
+  await api<string>('rpc/draft_begin', {
+    method: 'POST',
+    body: JSON.stringify({ room: roomId }),
   })
 }
 
