@@ -271,7 +271,19 @@ let upgraded = 0
  * to 15, which is a fifty-over-a-side idea and describes nothing in a Test:
  * measured across his Tests, Ravichandran Ashwin looks like a fast bowler.
  */
-const MID_OVER_SHARE = 0.45   // validated against 29 bowlers of known type
+/*
+ * Where spin starts, measured rather than guessed.
+ *
+ * 0.45 called Ajit Agarkar a spinner. He bowled 58% of his T20 balls in the
+ * middle overs — a fast-medium containment role that reads exactly like a
+ * spinner to this signal. Checked against bowlers whose type nobody disputes,
+ * the two groups do not overlap: every genuine spinner sits at 0.64 or above
+ * (Narine .64, Ashwin .68, Harbhajan .73, Rashid .75, Zampa .79, Tahir .81,
+ * Chahal .83) and every quick at 0.58 or below (Lee .15, Zaheer .17, Boult
+ * .19, Steyn .25, Archer .26, Bumrah .28, Malinga .30, Johnson .40, Agarkar
+ * .58). The gap between them is where the line belongs.
+ */
+const MID_OVER_SHARE = 0.62
 const MIN_TYPE_BALLS = 60     // ten overs, below which the reading is noise
 
 const bowlingTally = new Map()

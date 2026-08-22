@@ -18,6 +18,8 @@ import { PITCH } from './types'
  * numbers that came out. That way the card can never disagree with the score.
  */
 
+// A run out is the one dismissal that can follow runs off the same delivery,
+// so it is kept apart: the others all end the ball with the batter scoreless.
 const OUT_TYPES = ['b', 'lbw', 'c keeper', 'c mid-off', 'c deep', 'run out', 'st']
 
 const pick = <T,>(list: T[], rand: () => number) => list[Math.floor(rand() * list.length)]
@@ -127,16 +129,52 @@ function battingCard(
   const longest = ballsBy.indexOf(Math.max(...ballsBy))
   ballsBy[longest] = Math.max(1, ballsBy[longest] + drift)
 
+  /*
+   * Nobody scores more than six off a delivery.
+   *
+   * Runs and balls were shared out independently, so a batter could come back
+   * with three off one — which is legal — or twenty off two, which is not.
+   * Any shortfall is taken from whoever faced most, so the innings still
+   * lasts exactly as many deliveries as it did.
+   */
+  for (let i = 0; i < ballsBy.length; i++) {
+    const need = Math.ceil(runsBy[i] / 6)
+    if (ballsBy[i] >= need) continue
+    const owed = need - ballsBy[i]
+    const from = ballsBy.indexOf(Math.max(...ballsBy))
+    if (from === i || ballsBy[from] - owed < 1) continue
+    ballsBy[from] -= owed
+    ballsBy[i] += owed
+  }
+
   const lines = batters.map((p, i): BatLine => {
-    // Everyone is out except the two left standing — unless the side was bowled out.
-    const out = allOut || i < batters.length - 2
-    return {
-      name: p.surname,
-      runs: runsBy[i],
-      balls: ballsBy[i],
-      out,
-      how: out ? pick(OUT_TYPES, rand) : 'not out',
-    }
+    /*
+     * As many batters are out as wickets fell, and not one more.
+     *
+     * "allOut ||" put every one of the eleven down, so a side bowled out for
+     * a hundred showed eleven dismissals against ten wickets — the last man,
+     * who is left stranded at the other end, was given an entry too.
+     */
+    const out = i < wickets
+    const runs = runsBy[i]
+    const balls = ballsBy[i]
+    /*
+     * The ball that gets you out is a ball you did not score off — bowled,
+     * lbw, caught and stumped all end the delivery. So a dismissal needs the
+     * runs to fit in the deliveries before it. Three off one ball and out lbw
+     * was on a real card: the one ball he faced was the one that got him, and
+     * he had scored three off it.
+     *
+     * A run out is the exception, because those runs were being run when it
+     * happened. Where nothing else fits, that is what it was.
+     */
+    const fitsBeforeDismissal = runs <= 6 * (balls - 1)
+    const how = !out
+      ? 'not out'
+      : fitsBeforeDismissal
+        ? pick(OUT_TYPES, rand)
+        : 'run out'
+    return { name: p.surname, runs, balls, out, how }
   })
 
   return {
@@ -213,11 +251,19 @@ function bowlingCard(
     }
   }
   const spare = legalBalls % 6
+  /*
+   * The unfinished over belongs to somebody with an over left to bowl.
+   *
+   * It used to go to whoever was last in the list, quota or no quota, which
+   * produced 4.4 in a twenty-over game — a bowler with four overs cannot send
+   * down four more deliveries. An innings only ends mid-over when it ended
+   * early, so somebody is always short of their full allocation.
+   */
+  const partOver = spare ? oversBy.findIndex((o) => o < quota) : -1
 
   return attack.map((p, i) => ({
     name: p.surname,
-    // The part-over falls to the bowler who was on at the end.
-    overs: spare && i === attack.length - 1 ? `${oversBy[i]}.${spare}` : `${oversBy[i]}`,
+    overs: i === partOver ? `${oversBy[i]}.${spare}` : `${oversBy[i]}`,
     runs: runsBy[i],
     wickets: Math.min(wicketsBy[i], 10),
   }))

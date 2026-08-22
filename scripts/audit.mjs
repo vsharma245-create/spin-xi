@@ -167,6 +167,40 @@ const barFor = (squadId) => {
   const formats = String(raw).match(/[A-Z0-9]+/g) ?? ['T20L']
   return Math.max(...formats.map((f) => AR_BAR[f] ?? 12))
 }
+/*
+ * Bowlers whose type nobody disputes.
+ *
+ * Type is inferred from how many balls a bowler sends down in the middle
+ * overs, which is a real signal and a blunt one: at the old threshold it made
+ * Ajit Agarkar a spinner, because a fast-medium containment role looks from
+ * here exactly like a slow one. These fourteen are the check that the line
+ * stays where the two groups actually separate.
+ */
+const KNOWN = {
+  'Ajit Agarkar': 'PACE', 'Zaheer Khan': 'PACE', 'Jasprit Bumrah': 'PACE',
+  'Dale Steyn': 'PACE', 'Lasith Malinga': 'PACE', 'Mitchell Johnson': 'PACE',
+  'Trent Boult': 'PACE', 'Ravichandran Ashwin': 'SPIN', 'Harbhajan Singh': 'SPIN',
+  'Sunil Narine': 'SPIN', 'Rashid Khan': 'SPIN', 'Yuzvendra Chahal': 'SPIN',
+  'Imran Tahir': 'SPIN', 'Adam Zampa': 'SPIN',
+}
+const idOf = new Map()
+for (const [id, p] of players) if (KNOWN[p.name]) idOf.set(id, p.name)
+const typed = new Map()
+for (const r of roster) {
+  const name = idOf.get(r.player)
+  if (!name || (r.role !== 'PACE' && r.role !== 'SPIN')) continue
+  const seen = typed.get(name) ?? { PACE: 0, SPIN: 0 }
+  seen[r.role]++
+  typed.set(name, seen)
+}
+const mistyped = [...typed.entries()].filter(([name, seen]) => {
+  const top = seen.PACE >= seen.SPIN ? 'PACE' : 'SPIN'
+  return top !== KNOWN[name]
+})
+line('bowlers of known type read correctly', `${typed.size - mistyped.length}/${typed.size}`,
+  mistyped.map(([n]) => n).join(', '))
+if (mistyped.length) flag(`${mistyped.length} bowlers of known type are the wrong discipline`)
+
 const cameo = roster.filter((r) => r.role === 'AR' && r.bowlBalls < r.matches * barFor(r.squad))
 line('all-rounders who never bowled a spell', cameo.length, pct(cameo.length, roster.filter((r) => r.role === 'AR').length))
 if (cameo.length) flag(`${cameo.length} all-rounders bowl less than a spell`)
