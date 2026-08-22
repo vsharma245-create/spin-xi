@@ -339,7 +339,28 @@ export interface BowlLine {
  * Everything needed to replay a match in the viewer: both innings, who did the
  * damage, and the beats the match turned on.
  */
+/** One innings of a match, and the figures the other side took in it. */
+export interface InningsCard {
+  /** 'us' or the opposition — which side was batting. */
+  ours: boolean
+  /** "First innings", "Second innings", and for a Test the follow-ups. */
+  label: string
+  score: { runs: number; wickets: number; overs: string }
+  batting: BatLine[]
+  bowling: BowlLine[]
+  extras: number
+}
+
 export interface MatchCard {
+  /**
+   * Set for Tests, where two innings a side is the whole point.
+   *
+   * The limited-overs fields below describe one innings each, which is all a
+   * one-day game has. A Test played out over four innings was being shown as
+   * two, so a first-innings lead and a fourth-innings chase — the shape of the
+   * match — simply were not on the card.
+   */
+  innings?: InningsCard[]
   /** Runs we made, and the wickets we lost. */
   ourScore: { runs: number; wickets: number; overs: string }
   theirScore: { runs: number; wickets: number; overs: string }

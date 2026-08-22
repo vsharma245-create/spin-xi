@@ -244,7 +244,24 @@ export function MatchCardView({ match, teamName }: { match: MatchResult; teamNam
     extras: c.theirExtras,
     accent: match.outcome === 'L',
   }
-  const order = match.battedFirst ? [ourInnings, theirInnings] : [theirInnings, ourInnings]
+  /*
+   * A Test carries its own innings list, because two cards cannot show four
+   * visits to the crease. Everything else has one innings a side and uses the
+   * pair above.
+   */
+  const order = c.innings?.length
+    ? c.innings.map((inn) => ({
+        title: inn.ours ? teamName : match.opponent,
+        subtitle: inn.label,
+        score: inn.score,
+        batting: inn.batting,
+        bowling: inn.bowling,
+        extras: inn.extras,
+        accent: inn.ours && match.outcome === 'W',
+      }))
+    : match.battedFirst
+      ? [ourInnings, theirInnings]
+      : [theirInnings, ourInnings]
 
   return (
     <div>
@@ -291,8 +308,8 @@ export function MatchCardView({ match, teamName }: { match: MatchResult; teamNam
 
       {/* ── Both innings, in the order they were played ── */}
       <span className="label-lg">full scorecard</span>
-      {order.map((inn) => (
-        <Innings key={inn.title} {...inn} />
+      {order.map((inn, i) => (
+        <Innings key={`${i}-${inn.title}-${inn.subtitle}`} {...inn} />
       ))}
 
       {/* ── Hero ── */}

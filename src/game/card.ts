@@ -1,6 +1,7 @@
 import { dangerMan, spearhead } from './opponents'
 import type {
   BatLine,
+  InningsCard,
   BowlLine,
   Format,
   MatchCard,
@@ -441,7 +442,66 @@ export function buildCard(o: {
         ? { name: topBat.name, line: `${topBat.runs}${topBat.out ? '' : '*'} (${topBat.balls})` }
         : { name: '—', line: '—' }
 
+  /*
+   * A Test is four innings, not two.
+   *
+   * The simulator decides a side's runs and wickets for the match; in a Test
+   * those are the aggregate of two visits to the crease, so they are split
+   * rather than invented — the card still cannot disagree with the score. The
+   * side batting first tends to make more of its first innings, so the split
+   * is weighted that way and jittered.
+   *
+   * A fourth innings does not always happen. Where the side batting first
+   * leads by a distance, the follow-on has already settled it and the match
+   * ends in three, exactly as a win by an innings does.
+   */
+  const testInnings = (): InningsCard[] | undefined => {
+    if (format !== 'TEST') return undefined
+
+    const split = (runs: number, wickets: number, firstShare: number) => {
+      const one = Math.round(runs * firstShare)
+      const w1 = Math.min(10, Math.max(1, Math.round(wickets * firstShare)))
+      return [
+        { runs: one, wickets: w1 },
+        { runs: Math.max(0, runs - one), wickets: Math.max(0, Math.min(10, wickets - w1)) },
+      ]
+    }
+
+    const us = split(o.ourRuns, o.ourWickets, 0.52 + rand() * 0.1)
+    const them = split(o.theirRuns, o.theirWickets, 0.52 + rand() * 0.1)
+    const firstUp = o.battedFirst ? us : them
+    const secondUp = o.battedFirst ? them : us
+    // An innings victory: the side that batted second never came back.
+    const byInnings = firstUp[0].runs > secondUp[0].runs + secondUp[1].runs && o.outcome !== 'D'
+
+    const seq: { ours: boolean; label: string; runs: number; wickets: number }[] = [
+      { ours: o.battedFirst, label: 'First innings', ...firstUp[0] },
+      { ours: !o.battedFirst, label: 'First innings', ...secondUp[0] },
+      { ours: o.battedFirst, label: 'Second innings', ...firstUp[1] },
+      { ours: !o.battedFirst, label: 'Second innings', ...secondUp[1] },
+    ]
+    if (byInnings) seq.splice(2, 2, { ours: !o.battedFirst, label: 'Second innings', ...secondUp[1] })
+
+    return seq
+      .filter((i) => i.runs > 0)
+      .map((i) => {
+        const order = i.ours ? o.xi : theirOrder
+        const attack = i.ours ? o.opponent.players : o.xi
+        const balls = inningsBalls('TEST', i.wickets >= 10, false, rand)
+        const bat = battingCard(order, i.runs, i.wickets, 'TEST', pitch, balls, rand)
+        return {
+          ours: i.ours,
+          label: i.label,
+          score: { runs: i.runs, wickets: i.wickets, overs: oversFromBalls(balls) },
+          batting: bat.lines,
+          bowling: bowlingCard(attack, i.runs, i.wickets, 'TEST', pitch, balls, rand),
+          extras: bat.extras,
+        }
+      })
+  }
+
   const card: MatchCard = {
+    innings: testInnings(),
     ourScore: {
       runs: o.ourRuns,
       wickets: o.ourWickets,
