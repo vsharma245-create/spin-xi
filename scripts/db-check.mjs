@@ -217,6 +217,26 @@ try {
       if (!right) bad++
     }
 
+    // A closed league says so, even when its host never played.
+    {
+      const late = '77777777-7777-7777-7777-777777777777'
+      await db.exec(`
+        insert into auth.users (id) values ('${late}') on conflict do nothing;
+        insert into profiles (id, handle) values ('${late}', 'LATECOMER') on conflict do nothing;
+        insert into leagues (code, name, host, format, preset_id, rating_mode, difficulty,
+                             world_teams, scoring, closes_at)
+        values ('shut02', 'Already Over', '${host}', 'T20L', 'BALANCED', 'SEASON', 'NORMAL',
+                true, 'best', now() - interval '1 hour');
+        set request.jwt.claim.sub = '${late}';
+      `)
+      let why = ''
+      try { await db.query(`select league_join('shut02')`) } catch (err) { why = String(err.message ?? err) }
+      const right = /closed/i.test(why)
+      console.log(`  ${right ? 'ok  ' : 'FAIL'} a closed league says it is closed — "${why.slice(0, 40)}"`)
+      if (!right) bad++
+      await db.exec(`set request.jwt.claim.sub = '${mate}'`)
+    }
+
     // The rules cannot be rewritten once people are playing to them.
     let locked = false
     try { await db.exec(`update leagues set difficulty = 'EASY' where code = 'abc123'`) } catch { locked = true }

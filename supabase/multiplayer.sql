@@ -185,11 +185,16 @@ begin
     return l.id;
   end if;
 
-  if not exists (select 1 from results r where r.league_id = l.id and r.player = l.host) then
-    raise exception 'The host has not played yet.';
-  end if;
+  /*
+   * Closed first. A league past its deadline is closed whether or not the
+   * host ever played, and "the host has not played yet" tells somebody to
+   * wait for a link that will never open.
+   */
   if l.closes_at is not null and now() > l.closes_at then
     raise exception 'That league has closed.';
+  end if;
+  if not exists (select 1 from results r where r.league_id = l.id and r.player = l.host) then
+    raise exception 'The host has not played yet.';
   end if;
 
   select count(*) into taken from league_entries e where e.league_id = l.id;
