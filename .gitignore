@@ -29,3 +29,6 @@ dist-ssr
 
 # Wrangler build cache
 .wrangler/
+
+# Bundled by npm run live:check
+.live-probe.mjs

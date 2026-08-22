@@ -16,6 +16,7 @@
     "challenges": "node scripts/build-challenges.mjs",
     "nations": "node scripts/fetch-nations.mjs",
     "db:check": "node scripts/db-check.mjs",
+    "live:check": "esbuild scripts/live-probe.ts --bundle --platform=node --format=esm --outfile=.live-probe.mjs --external:@electric-sql/pglite --log-level=error && node .live-probe.mjs; rm -f .live-probe.mjs",
     "audit": "node scripts/audit.mjs"
   },
   "dependencies": {
