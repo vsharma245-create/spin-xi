@@ -252,6 +252,8 @@ const teams = new Map()
 const players = new Map()
 const squads = new Map()
 const rosterRows = []
+/** Emitted player id back to the Cricsheet id its career was tallied under. */
+const sourceIdOf = new Map()
 let upgraded = 0
 
 /* ── Pace or spin ──────────────────────────────────────────────────────── */
@@ -322,33 +324,97 @@ let stated = 0
 
 /** Null when there is not enough bowling to say, leaving the season's own guess. */
 /*
- * What a player was, taken across their whole career.
+ * Who a player was, from everything they played.
  *
- * A season where somebody bowled nothing is not evidence that they were not a
- * bowler — often it is a tour where they carried the drinks. Read one season
- * at a time, Hiren Varaiya came out a spinner in fourteen of his sixteen and a
- * batter in the two with nothing recorded, and Kenya's 2008 one-day squad was
- * left with three men who could bowl and no attack to speak of.
- *
- * Only seasons with something behind them get a vote, so the majority is
- * decided by the cricket that happened rather than by the gaps.
+ * A season is often too thin to say. Read one at a time, Hiren Varaiya is a
+ * spinner in fourteen of his sixteen and a batter in the two with nothing
+ * recorded; a batter who sends down a few overs on a flat day reads as a
+ * bowler. So the career is added up first and asked the same question, and
+ * that answer becomes the player's primary role — the thing a thin season
+ * falls back to, and the thing a substantial season is allowed to overrule.
  */
-const CAREER_ROLE = new Map()
-{
-  const votes = new Map()
-  for (const r of rows) {
-    const played = r.stats.bowlBalls >= 30 || r.stats.balls >= 30
-    if (!played) continue
-    const tally = votes.get(r.id) ?? {}
-    tally[r.role] = (tally[r.role] ?? 0) + 1
-    votes.set(r.id, tally)
+const CAREER = new Map()
+for (const r of rows) {
+  const c = CAREER.get(r.id) ?? {
+    matches: 0, balls: 0, runs: 0, outs: 0, bowlBalls: 0, bowlRuns: 0, wickets: 0,
+    midOvers: 0, keeperDismissals: 0, posSum: 0, posCount: 0, seasons: 0,
+    best: null, teams: new Map(),
   }
-  for (const [id, tally] of votes) {
-    const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1])
-    const [role, n] = ranked[0]
-    // Three seasons of agreement before a career says anything about a gap.
-    if (n >= 3) CAREER_ROLE.set(id, role)
-  }
+  const t = r.stats
+  c.matches += t.matches; c.balls += t.balls; c.runs += t.runs; c.outs += t.outs
+  c.bowlBalls += t.bowlBalls; c.bowlRuns += t.bowlRuns; c.wickets += t.wickets
+  c.midOvers += t.midOvers; c.keeperDismissals += t.keeperDismissals
+  for (const p of t.positions ?? []) { c.posSum += p; c.posCount++ }
+  c.seasons++
+  if (!c.best || r.ovr > c.best.ovr) c.best = r
+  c.teams.set(r.team, (c.teams.get(r.team) ?? 0) + 1)
+  CAREER.set(r.id, c)
+}
+
+/**
+ * The same reading as a season gets, on career totals — but the bars have to
+ * be rates rather than counts, or a long career trips every one of them.
+ *
+ * Three stumpings and catches is a season's worth of evidence that somebody
+ * kept wicket; across six hundred matches it is evidence that they stood in
+ * once. Tendulkar came out an all-rounder and Sehwag with him, on part-time
+ * overs that add up over three hundred matches and never amounted to a spell
+ * in any of them. So a keeper has to keep at something like a keeper's rate,
+ * and an all-rounder has to bowl two overs a match — the same spell the season
+ * reading already asks for, applied to the whole career.
+ */
+function roleOf(c, id) {
+  const battedALot = c.balls >= c.matches * 8
+  const bowledALot = c.bowlBalls >= c.matches * 12
+  const avgPos = c.posCount ? c.posSum / c.posCount : 11
+  const type = () => bowlingType(id) ?? (c.bowlBalls && c.midOvers / c.bowlBalls >= MID_OVER_SHARE ? 'SPIN' : 'PACE')
+  if (c.keeperDismissals >= Math.max(5, c.matches * 0.3)) return 'WK'
+  /*
+   * An all-rounder takes wickets. Overs alone made Sehwag one on part-time
+   * off-spin — ninety-five wickets in three hundred and fifty-seven matches,
+   * which is a batter who bowls, not a second bowling option. A wicket every
+   * other match is the difference, and it is what a draft slot marked AR is
+   * actually asking for.
+   */
+  const tookWickets = c.wickets >= c.matches * 0.5
+
+  /*
+   * Where somebody bats settles which family they are in; what they take with
+   * the ball settles whether they are an all-rounder inside it. Kallis batted
+   * top order and took three hundred and twenty-one wickets in three hundred
+   * and seventy matches, so he is an all-rounder and comes out as one. Sehwag
+   * batted top order and took ninety-five in three hundred and fifty-seven,
+   * so he is a batter who bowls.
+   *
+   * The order matters as much as the test. Failing the all-rounder check used
+   * to drop through to the next line and make them a bowler, which turned
+   * Sehwag and Maxwell into spinners on the strength of the very overs they
+   * had just been judged not to have earned.
+   */
+  if (battedALot && avgPos <= 7.5) return bowledALot && tookWickets ? 'AR' : 'BAT'
+  if (bowledALot) return type()
+  if (c.bowlBalls >= c.matches * 6 && avgPos >= 6.5) return type()
+  return 'BAT'
+}
+
+/**
+ * Whether a season has enough behind it to speak over the career.
+ *
+ * Volume in the discipline the season is claiming, not a match count. Counting
+ * matches called a three-match tour thin and overruled it with the career,
+ * which stamped Anshuman Rath a wicketkeeper over a season where he sent down
+ * a hundred and eighty deliveries.
+ *
+ * The asymmetry is the point. Overs bowled and dismissals taken are evidence
+ * that something happened; runs scored are not evidence that nothing else did.
+ * So a bowling season needs overs and a keeping season needs dismissals, while
+ * a batting season only overrules a bowler when there was a real summer of
+ * cricket in which they did not bowl — which is what says something.
+ */
+const seasonSpeaks = (t, role) => {
+  if (role === 'PACE' || role === 'SPIN' || role === 'AR') return t.bowlBalls >= 60
+  if (role === 'WK') return t.keeperDismissals >= 3
+  return t.balls >= 60 && t.matches >= 4
 }
 
 function bowlingType(id) {
@@ -364,6 +430,37 @@ function bowlingType(id) {
   if (balls < MIN_TYPE_BALLS) return null
   return mid / balls >= MID_OVER_SHARE ? 'SPIN' : 'PACE'
 }
+
+/*
+ * What the player's own article says they were.
+ *
+ * The career reading below is good and it is still a reading: it sees overs
+ * and batting positions and infers. An infobox states it — "Batsman",
+ * "All-rounder", "Wicket-keeper-batsman" — which is a fact about the player
+ * rather than an inference from a sample, and it settles the cases the
+ * reading gets wrong in both directions.
+ *
+ * The reading stays for everyone with no article, which is mostly domestic
+ * players with short careers.
+ */
+let STATED_ROLE = {}
+try {
+  STATED_ROLE = JSON.parse(await readFile(join(ROOT, 'data/roles.json'), 'utf8')).players
+} catch {
+  console.log('  no data/roles.json — roles fall back to the career reading (npm run roles)')
+}
+let saidRole = 0
+let readRole = 0
+
+/** Every player's primary role: what they said, else what their career shows. */
+const PRIMARY_ROLE = new Map()
+for (const [id, c] of CAREER) {
+  const said = STATED_ROLE[id]?.role
+  if (said) saidRole++
+  else readRole++
+  PRIMARY_ROLE.set(id, said ?? roleOf(c, id))
+}
+
 
 let retyped = 0
 let demoted = 0
@@ -512,6 +609,7 @@ for (const r of rows) {
 
   const pid = r.id.startsWith('name:') ? slug(r.player) : r.id
   emittedFrom.set(r.id, pid)
+  if (!sourceIdOf.has(pid)) sourceIdOf.set(pid, r.id)
   if (!players.has(pid)) {
     const display = wikidataNames[r.id] ?? displayName(r.player)
     if (display !== r.player) upgraded++
@@ -543,19 +641,32 @@ for (const r of rows) {
   }
 
   /*
-   * A blank season should not turn a bowler into a batter. Where nothing was
-   * little was bowled and the player's career says otherwise, the career wins
-   * — their bowling rating for that season stays at the floor, which is
-   * honest, but they are still the bowler they were.
+   * The career decides, unless the season has earned the right to disagree.
    *
-   * A season with no overs at all is left alone. Whatever the player was, a
-   * card that says PACE next to nought overs bowled is not describing
-   * anything that happened.
+   * A substantial season is the better description of that summer — a batter
+   * who genuinely opened the bowling for a season was that, whatever the rest
+   * of his career says. A thin one is not a description of anything, and used
+   * to overwrite the player with an accident of what got recorded.
    */
-  if (role === 'BAT' && r.stats.bowlBalls > 0 && r.stats.bowlBalls < r.stats.matches * 2) {
-    const career = CAREER_ROLE.get(r.id)
-    if (career === 'PACE' || career === 'SPIN') {
-      role = career
+  if (!seasonSpeaks(r.stats, role)) {
+    const primary = PRIMARY_ROLE.get(r.id)
+    // Never invent a bowler out of a season with no overs in it: the card would
+    // read PACE beside nought overs bowled.
+    /*
+     * The career fills a gap; it never contradicts what is on the page.
+     *
+     * A bowler's role is not applied to a season with no overs in it, and a
+     * keeper's is not applied to a season where the player bowled more than
+     * any keeper does — Lokuhettige turned out at wicketkeeper over a season
+     * he spent bowling seam. Whatever the career says, the row has to describe
+     * the cricket it is a record of.
+     */
+    const bowls = primary === 'PACE' || primary === 'SPIN' || primary === 'AR'
+    const contradicts =
+      (bowls && r.stats.bowlBalls === 0) ||
+      (primary === 'WK' && r.stats.bowlBalls > r.stats.matches * 24)
+    if (primary && primary !== role && !contradicts) {
+      role = primary
       restored++
     }
   }
@@ -728,6 +839,57 @@ function cardStats(r, role = r.role) {
   }
 }
 
+/*
+ * The career record, assembled once the roster is settled.
+ *
+ * Everything here is about the player rather than any one summer: what they
+ * were, the best they ever were, and the side they are remembered for. It is
+ * built from the rows that survived, so a squad dropped for having no bowling
+ * cannot leave a player pointing at a team that is no longer in the archive.
+ */
+{
+  const career = new Map()
+  for (const r of rosterRows) {
+    const squad = squads.get(r.squad)
+    if (!squad) continue
+    const c = career.get(r.player) ?? {
+      peak: null, teams: new Map(), seasons: 0, matches: 0, runs: 0, wickets: 0,
+    }
+    if (!c.peak || r.ovr > c.peak.ovr) {
+      c.peak = { ovr: r.ovr, season: squad.season, format: squad.formats[0] ?? 'T20L' }
+    }
+    c.teams.set(squad.key, (c.teams.get(squad.key) ?? 0) + 1)
+    c.seasons++
+    c.matches += r.source.stats.matches
+    c.runs += r.source.stats.runs
+    c.wickets += r.source.stats.wickets
+    career.set(r.player, c)
+  }
+
+  for (const [pid, p] of players) {
+    const c = career.get(pid)
+    if (!c || !c.peak) { players.delete(pid); continue }
+    // The side they turned out for most often, ties broken by name so a
+    // rebuild does not shuffle them about.
+    const [mainKey] = [...c.teams].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]
+    const team = teams.get(mainKey)
+    const anySquad = [...squads.values()].find((sq) => sq.key === mainKey)
+    p.primaryRole = PRIMARY_ROLE.get(sourceIdOf.get(pid) ?? pid) ?? 'BAT'
+    p.peakOvr = c.peak.ovr
+    p.peakSeason = c.peak.season
+    p.peakFormat = c.peak.format
+    p.mainTeamKey = mainKey
+    p.mainTeam = anySquad?.name ?? mainKey
+    p.teamType = team?.region ?? 'WORLD'
+    p.seasons = c.seasons
+    p.matches = c.matches
+    p.runs = c.runs
+    p.wickets = c.wickets
+  }
+  console.log(`  ${players.size} players carry a career record`)
+  console.log(`  primary role: ${saidRole} stated in their own article, ${readRole} read from their career`)
+}
+
 /* ── Emit ──────────────────────────────────────────────────────────────── */
 
 const q = (v) => (v === null || v === undefined ? 'null' : `'${String(v).replace(/'/g, "''")}'`)
@@ -776,7 +938,17 @@ ${insert('challenges', ['slot', 'format', 'preset_id', 'objective', 'objective_d
 
 ${insert('teams', ['key', 'region', 'home_nation'], [...teams.values()].map((t) => [q(t.key), q(t.region), q(t.home)]))}
 
-${insert('players', ['id', 'name', 'surname', 'nation'], [...players.values()].map((p) => [q(p.id), q(p.name), q(p.surname), q(p.nation)]))}
+${insert(
+  'players',
+  ['id', 'name', 'surname', 'nation', 'primary_role', 'peak_ovr', 'peak_season',
+   'peak_format', 'main_team_key', 'main_team', 'team_type', 'seasons', 'matches',
+   'runs', 'wickets'],
+  [...players.values()].map((p) => [
+    q(p.id), q(p.name), q(p.surname), q(p.nation), q(p.primaryRole), n(p.peakOvr),
+    q(p.peakSeason), q(p.peakFormat), q(p.mainTeamKey), q(p.mainTeam), q(p.teamType),
+    n(p.seasons), n(p.matches), n(p.runs), n(p.wickets),
+  ]),
+)}
 
 ${insert('squads', ['id', 'team_key', 'team_name', 'team_short', 'season', 'competition', 'formats'], [...squads.values()].map((s) => [q(s.id), q(s.key), q(s.name), q(s.short), q(s.season), q(s.comp), arr(s.formats)]))}
 

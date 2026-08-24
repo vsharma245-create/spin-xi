@@ -53,12 +53,45 @@ comment on column teams.region is
 
 /* ── Players ───────────────────────────────────────────────────────────── */
 
+/*
+ * A player, as against a player-season.
+ *
+ * squad_players holds what somebody did in one summer; this holds who they
+ * were. The distinction matters because a single season is often too thin to
+ * say: a spinner who bowled nothing on one tour reads as a batter, and a
+ * batter who sent down a few overs reads as a bowler. The career answers that,
+ * and a season only overrules it when the season has enough behind it to.
+ */
 create table players (
   id      text primary key,       -- Cricsheet registry identifier where one exists
   name    text not null,
   surname text not null,          -- shown where a scoreboard would abbreviate
-  nation  text not null
+  nation  text not null,
+
+  -- What they were across everything they played, from career totals rather
+  -- than any one season. The anchor a thin season falls back to.
+  primary_role text not null check (primary_role in ('BAT', 'WK', 'AR', 'PACE', 'SPIN')),
+
+  -- Their best season, and where it happened.
+  peak_ovr     smallint not null check (peak_ovr between 40 and 99),
+  peak_season  text     not null,
+  peak_format  text     not null,
+
+  -- The side they are most associated with, and what kind of side it is:
+  -- IN = Indian T20 League franchise, WORLD = overseas franchise, INTL = country.
+  main_team_key text not null,
+  main_team     text not null,
+  team_type     text not null check (team_type in ('IN', 'WORLD', 'INTL')),
+
+  -- What the career adds up to.
+  seasons  smallint not null,
+  matches  integer  not null,
+  runs     integer  not null,
+  wickets  integer  not null
 );
+
+create index players_primary_role_idx on players (primary_role);
+create index players_team_type_idx    on players (team_type);
 
 create index players_nation_idx on players (nation);
 
@@ -181,6 +214,10 @@ select
   s.id as squad_id, s.team_key, s.team_name, s.team_short, s.season,
   s.competition, s.formats, t.region,
   sp.player_id, p.name, p.surname, p.nation,
+  -- Who the player was across their whole career, carried alongside what they
+  -- did in this one season, so a card can show both.
+  p.primary_role, p.peak_ovr, p.peak_season, p.peak_format,
+  p.main_team, p.team_type, p.seasons as career_seasons,
   sp.role, sp.alt_roles, sp.ovr, sp.bat, sp.bowl, sp.s1, sp.s2, sp.s3,
   sp.matches, sp.runs, sp.balls, sp.outs, sp.wickets, sp.bowl_balls, sp.bowl_runs
 from squad_players sp
