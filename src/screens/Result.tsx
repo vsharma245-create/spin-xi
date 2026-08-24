@@ -6,6 +6,7 @@ import { MatchDrawer, MatchRow } from '../components/MatchView'
 import { SeasonReview } from '../components/Review'
 import { SheetDrawer, TeamSheetList } from '../components/TeamSheet'
 import { Button, SectionLabel, StatCard } from '../components/ui'
+import { seasonRecords } from '../game/records'
 import { ClaimAccount } from '../components/ClaimAccount'
 import { identity } from '../data/account'
 import { loadStats } from '../data/records'
@@ -121,6 +122,12 @@ export default function Result({
   const [xiOpen, setXiOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [openMatch, setOpenMatch] = useState<MatchResult | null>(null)
+  // Read back off the scorecards that were already generated, so this costs
+  // nothing beyond the walk and cannot disagree with the match log below it.
+  const records = useMemo(
+    () => seasonRecords([...result.matches, ...result.knockouts]),
+    [result],
+  )
   const review = useMemo(() => buildReview(result), [result])
   const trophyOpen =
     !!onTrophy && result.format === 'T20L' && result.standing <= TROPHY_QUALIFY_STANDING
@@ -368,6 +375,27 @@ export default function Result({
           draws={t.draws}
         />
       </div>
+
+      {/* ── The season's best individual performances ── */}
+      {records.length > 0 && (
+        <div className="mt-9">
+          <SectionLabel right={<span className="label">across the season</span>}>
+            season records
+          </SectionLabel>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            {records.map((r) => (
+              <div key={r.label} className="surface px-3 py-2.5">
+                <span className="label">{r.label}</span>
+                <div className="tnum mt-1 text-[22px] font-bold leading-none text-cream">
+                  {r.figure}
+                </div>
+                <div className="mt-1 truncate text-[11px] font-bold text-cream">{r.who}</div>
+                <div className="truncate text-[10px] leading-snug text-moss">{r.detail}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Full scorecard ── */}
       <div className="mt-9">

@@ -650,9 +650,18 @@ export function playKnockout(
   // Knockouts tighten up; the final tightest of all.
   edge -= 2 + k * 1.5
 
+  /*
+   * The toss cuts both ways. Winning it and reading the surface right was
+   * worth a real edge, and losing it was worth nothing at all — the opposition
+   * called correctly, chose what suited them, and the match played as though
+   * the coin had never gone up. Their advantage is the mirror of ours, a
+   * little smaller because they take the obvious option rather than a read.
+   */
   if (toss?.won) {
     const readItRight = toss.batFirst === favoursBatting(spec.pitch)
     edge += readItRight ? 3.2 : 0.6
+  } else if (toss) {
+    edge -= 2.4
   }
 
   const pWin = winProbability(edge, format)

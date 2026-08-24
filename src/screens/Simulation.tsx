@@ -475,13 +475,28 @@ export default function Simulation({
                   </>
                 ) : (
                   <div className="mt-3">
+                    {/* What they actually did with it. Saying only that they
+                        had chosen left the player to work out from the
+                        scorecard afterwards whether they were batting. */}
+                    <p className="text-[12px] leading-snug text-cream">
+                      <span className="font-bold">{spec.opponent.name}</span> won the toss and
+                      chose to <span className="font-bold">
+                        {favoursBatting(spec.pitch) ? 'bat' : 'bowl'}
+                      </span> first.
+                    </p>
+                    <p className="mt-1 text-[10.5px] leading-snug text-moss">
+                      {favoursBatting(spec.pitch)
+                        ? 'They fancied the surface and took first use of it.'
+                        : 'They read something in the pitch and put you in.'}
+                    </p>
                     <Button
                       full
+                      className="mt-3"
                       onClick={() =>
                         resolveKnockout({ won: false, batFirst: !favoursBatting(spec.pitch) })
                       }
                     >
-                      They chose · play on →
+                      Play on →
                     </Button>
                   </div>
                 )}
