@@ -13,6 +13,7 @@
     "db:push": "node scripts/db-push.mjs",
     "ingest": "node scripts/ingest-cricsheet.mjs",
     "archive": "node scripts/build-archive.mjs",
+    "rerate": "node scripts/rerate.mjs",
     "challenges": "node scripts/build-challenges.mjs",
     "nations": "node scripts/fetch-nations.mjs",
     "bowling": "node scripts/fetch-bowling.mjs",
