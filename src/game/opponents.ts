@@ -187,7 +187,7 @@ export function opponentPool(
      * its single greatest team, so the fixture list still changes run to run.
      */
     const drawn = Array.from({ length: Math.min(4, from.length) }, () => from[Math.floor(rand() * from.length)])
-      .map((sq) => opponentFrom(squadRated(sq, opts.ratingMode ?? 'SEASON')))
+      .map((sq) => opponentFrom(squadRated(sq, opts.ratingMode ?? 'SEASON', format)))
       .sort((a, b) => b.ratings.ovr - a.ratings.ovr)[0]
     sides.push(drawn)
   }

@@ -14,6 +14,7 @@
     "ingest": "node scripts/ingest-cricsheet.mjs",
     "archive": "node scripts/build-archive.mjs",
     "rerate": "node scripts/rerate.mjs",
+    "data:check": "esbuild scripts/data-probe.ts --bundle --platform=node --format=esm --outfile=.data-probe.mjs --external:@electric-sql/pglite --log-level=error && node .data-probe.mjs; rm -f .data-probe.mjs",
     "challenges": "node scripts/build-challenges.mjs",
     "nations": "node scripts/fetch-nations.mjs",
     "bowling": "node scripts/fetch-bowling.mjs",

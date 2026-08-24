@@ -56,7 +56,15 @@ const RULES: [string, (r: Row) => boolean][] = [
   ['no wickets without bowling', (r) => !(r.bowl_balls === 0 && r.wickets > 0)],
   ['runs conceded that fit',     (r) => r.bowl_runs <= r.bowl_balls * 8 + 40],
   ['a bowler who bowled',        (r) => !((r.role === 'PACE' || r.role === 'SPIN') && r.bowl_balls === 0)],
-  ['a keeper who is not a quick',(r) => !(r.role === 'WK' && r.bowl_balls > r.matches * 12)],
+  /*
+   * The point is to catch a frontline bowler wrongly handed the gloves, and
+   * two overs a match was too tight a bar for that. It flagged de Villiers
+   * keeping in three Tests in 2004/05 and bowling seven overs across them, and
+   * Mahmudullah doing much the same in 2015 — both genuinely kept, both
+   * genuinely rolled their arm over. Four overs a match is a spell; anything
+   * under it is a part-timer, which is a thing keepers are allowed to be.
+   */
+  ['a keeper who is not a quick',(r) => !(r.role === 'WK' && r.bowl_balls > r.matches * 24)],
   ['a season it could belong to',(r) => /^\d{4}(\/\d{2})?$/.test(r.season)],
   ['a squad that plays a format',(r) => /T20L|ODIWC|T20WC|TEST/.test(r.formats)],
 ]

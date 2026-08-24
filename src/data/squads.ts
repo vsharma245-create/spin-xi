@@ -235,8 +235,25 @@ export function hydrate(rows: RosterRow[]): void {
   PRIMED.clear()
   for (const squad of SQUADS) {
     for (const p of squad.players) {
-      const best = PEAK.get(p.name)
-      if (!best || p.ovr > best.ovr) PEAK.set(p.name, p)
+      /*
+       * A peak per player per format, not one peak per name.
+       *
+       * By name, the two Rashid Khans shared a career: forty-one names in the
+       * archive belong to more than one cricketer, and the better of them lent
+       * the other his rating.
+       *
+       * And across formats it was worse. Half the archive drew its prime from
+       * a different kind of cricket entirely — Shane Watson's T20 league card
+       * went from 65 to 98 on the strength of a World Cup, and Gayle's league
+       * card was lifted by an international one. A player's peak in this
+       * format is a real thing; their peak in some other format is not a
+       * better version of this card, it is a different card.
+       */
+      for (const format of squad.formats) {
+        const key = `${p.playerId}|${format}`
+        const best = PEAK.get(key)
+        if (!best || p.ovr > best.ovr) PEAK.set(key, p)
+      }
     }
   }
 
@@ -260,28 +277,45 @@ const cap = (n: number) => Math.min(99, Math.max(20, Math.round(n)))
  * lifted to the numbers they hit at their peak. Sub-ratings are scaled rather
  * than copied so the labels still match the role you drafted them into.
  */
-export function primeOf(p: PlayerSeason): PlayerSeason {
-  const peak = PEAK.get(p.name)
+export function primeOf(p: PlayerSeason, format: Format): PlayerSeason {
+  const peak = PEAK.get(`${p.playerId}|${format}`)
   if (!peak || peak.ovr <= p.ovr) return { ...p, prime: true, peakSeason: p.season }
+  /*
+   * When the peak season was played in the same role, its figures are the
+   * right ones and are taken as they are. Scaling is the fallback for a peak
+   * reached in another role — an all-rounder's best year against a card drafted
+   * as a batter — where the labels would not line up if they were copied.
+   */
   const k = peak.ovr / p.ovr
+  const stats =
+    peak.role === p.role
+      ? (peak.stats.map((s) => ({ ...s })) as [Stat, Stat, Stat])
+      : (p.stats.map((s) => ({ ...s, value: cap(s.value * k) })) as [Stat, Stat, Stat])
   return {
     ...p,
     ovr: peak.ovr,
-    stats: p.stats.map((s) => ({ ...s, value: cap(s.value * k) })) as [Stat, Stat, Stat],
-    bat: cap(p.bat * k),
-    bowl: cap(p.bowl * k),
+    stats,
+    bat: peak.role === p.role ? peak.bat : cap(p.bat * k),
+    bowl: peak.role === p.role ? peak.bowl : cap(p.bowl * k),
     prime: true,
     peakSeason: peak.season,
   }
 }
 
-/** A squad seen through the chosen rating mode. Memoised — ids never change. */
-export function squadRated(squad: Squad, mode: RatingMode): Squad {
+/**
+ * A squad seen through the chosen rating mode. Memoised — ids never change.
+ *
+ * The format matters: a prime card is the best this player managed in this
+ * kind of cricket, so the same squad primes differently depending on which
+ * tournament is being drafted, and the cache is keyed accordingly.
+ */
+export function squadRated(squad: Squad, mode: RatingMode, format: Format): Squad {
   if (mode === 'SEASON') return squad
-  const hit = PRIMED.get(squad.id)
+  const key = `${squad.id}|${format}`
+  const hit = PRIMED.get(key)
   if (hit) return hit
-  const primed = { ...squad, players: squad.players.map(primeOf) }
-  PRIMED.set(squad.id, primed)
+  const primed = { ...squad, players: squad.players.map((p) => primeOf(p, format)) }
+  PRIMED.set(key, primed)
   return primed
 }
 

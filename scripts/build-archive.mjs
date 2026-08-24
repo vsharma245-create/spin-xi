@@ -321,6 +321,36 @@ try {
 let stated = 0
 
 /** Null when there is not enough bowling to say, leaving the season's own guess. */
+/*
+ * What a player was, taken across their whole career.
+ *
+ * A season where somebody bowled nothing is not evidence that they were not a
+ * bowler — often it is a tour where they carried the drinks. Read one season
+ * at a time, Hiren Varaiya came out a spinner in fourteen of his sixteen and a
+ * batter in the two with nothing recorded, and Kenya's 2008 one-day squad was
+ * left with three men who could bowl and no attack to speak of.
+ *
+ * Only seasons with something behind them get a vote, so the majority is
+ * decided by the cricket that happened rather than by the gaps.
+ */
+const CAREER_ROLE = new Map()
+{
+  const votes = new Map()
+  for (const r of rows) {
+    const played = r.stats.bowlBalls >= 30 || r.stats.balls >= 30
+    if (!played) continue
+    const tally = votes.get(r.id) ?? {}
+    tally[r.role] = (tally[r.role] ?? 0) + 1
+    votes.set(r.id, tally)
+  }
+  for (const [id, tally] of votes) {
+    const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1])
+    const [role, n] = ranked[0]
+    // Three seasons of agreement before a career says anything about a gap.
+    if (n >= 3) CAREER_ROLE.set(id, role)
+  }
+}
+
 function bowlingType(id) {
   const said = STATED_TYPE[id]
   if (said) {
@@ -337,6 +367,7 @@ function bowlingType(id) {
 
 let retyped = 0
 let demoted = 0
+let restored = 0
 
 /**
  * What counts as a spell, by format.
@@ -511,6 +542,24 @@ for (const r of rows) {
     demoted++
   }
 
+  /*
+   * A blank season should not turn a bowler into a batter. Where nothing was
+   * little was bowled and the player's career says otherwise, the career wins
+   * — their bowling rating for that season stays at the floor, which is
+   * honest, but they are still the bowler they were.
+   *
+   * A season with no overs at all is left alone. Whatever the player was, a
+   * card that says PACE next to nought overs bowled is not describing
+   * anything that happened.
+   */
+  if (role === 'BAT' && r.stats.bowlBalls > 0 && r.stats.bowlBalls < r.stats.matches * 2) {
+    const career = CAREER_ROLE.get(r.id)
+    if (career === 'PACE' || career === 'SPIN') {
+      role = career
+      restored++
+    }
+  }
+
   if (KEEPER_GLOVES.get(squadId) === r.id && role !== 'WK') {
     role = 'WK'
     gloved++
@@ -543,13 +592,26 @@ for (const r of rows) {
 {
   const bowledIn = new Set()
   for (const r of rosterRows) if (r.source.stats.bowlBalls > 0) bowledIn.add(r.squad)
-  const hollow = [...squads.keys()].filter((id) => !bowledIn.has(id))
+  /*
+   * And a side that can only find three bowlers is nearly as hollow. Kenya's
+   * 2008 one-day squad came through with three, which is not an attack — the
+   * shortfall is in what the archive recorded, not in the cricket, and a draft
+   * offered that squad has nothing useful to take from it.
+   */
+  const canBowl = new Map()
+  for (const r of rosterRows) {
+    const bowls = r.role === 'PACE' || r.role === 'SPIN' || r.role === 'AR'
+    if (bowls) canBowl.set(r.squad, (canBowl.get(r.squad) ?? 0) + 1)
+  }
+  const hollow = [...squads.keys()].filter(
+    (id) => !bowledIn.has(id) || (canBowl.get(id) ?? 0) < 4,
+  )
   if (hollow.length) {
     for (const id of hollow) squads.delete(id)
     const kept = rosterRows.filter((r) => !hollow.includes(r.squad))
     rosterRows.length = 0
     rosterRows.push(...kept)
-    console.log(`  ${hollow.length} squads dropped for having no bowling recorded`)
+    console.log(`  ${hollow.length} squads dropped for having no bowling attack to speak of`)
   }
 
   // A player or team left with nothing to appear in should not be listed.
@@ -563,6 +625,7 @@ console.log(`  ${upgraded} scorecard names upgraded to full names`)
 console.log(`  ${skippedMinor} rows dropped for sides outside the recognised nations`)
 console.log(`  ${retyped} seasons re-typed — ${stated} of them from a stated style, the rest from the middle-over reading`)
 console.log(`  ${demoted} all-rounders who never bowled a spell returned to batting`)
+console.log(`  ${restored} blank seasons given back the role the player's career shows`)
 console.log(`  ${gloved} players given the gloves so every squad has a keeper`)
 {
   const emitted = new Set(rosterRows.map((r) => r.player))

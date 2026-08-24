@@ -78,7 +78,7 @@ const maskOf = (roles: Role[]) => roles.reduce((m, r) => m | ROLE_BIT[r], 0)
 export interface Feasibility {
   /** How many still-available players cover exactly this set of roles. */
   counts: number[]
-  /** Every role a player has filled in this pool, by name. */
+  /** Every role a player has filled in this pool, by player id. */
   maskFor: Map<string, number>
   /**
    * Players already gone to somebody else's XI, by id.
@@ -98,18 +98,22 @@ export interface Feasibility {
  * became a specialist batter can still be drafted as the 2016 card.
  */
 export function feasibility(pool: Squad[], slots: Slot[], taken?: Set<string>): Feasibility {
-  const mine = new Set(slots.map((s) => s.player?.name).filter(Boolean))
+  /*
+   * Keyed on the player rather than their name. Forty-one names in the archive
+   * belong to more than one cricketer — there are two Rashid Khans — and
+   * counting by name quietly merged them, so drafting one made the other
+   * unavailable and the pool was short of players it actually had.
+   */
+  const mine = new Set(slots.map((s) => s.player?.playerId).filter(Boolean))
   const maskFor = new Map<string, number>()
-  const goneNames = new Set<string>()
   for (const squad of pool) {
     for (const p of squad.players) {
-      maskFor.set(p.name, (maskFor.get(p.name) ?? 0) | maskOf(rolesOf(p)))
-      if (taken?.has(p.playerId)) goneNames.add(p.name)
+      maskFor.set(p.playerId, (maskFor.get(p.playerId) ?? 0) | maskOf(rolesOf(p)))
     }
   }
   const counts = new Array<number>(MASKS).fill(0)
-  for (const [name, mask] of maskFor) {
-    if (!mine.has(name) && !goneNames.has(name)) counts[mask]++
+  for (const [id, mask] of maskFor) {
+    if (!mine.has(id) && !taken?.has(id)) counts[mask]++
   }
   return { counts, maskFor, taken }
 }
@@ -136,8 +140,10 @@ export function openSlotsFor(
 ): number[] {
   // Gone to another seat in a live room, so not going anywhere here.
   if (feas?.taken?.has(player.playerId)) return []
-  // One version of a player only — you can't field 2016 Kohli next to 2023 Kohli.
-  if (slots.some((s) => s.player?.name === player.name)) return []
+  // One version of a player only — you can't field 2016 Kohli next to 2023
+  // Kohli. By player rather than by name: two different cricketers who happen
+  // to share one should not block each other.
+  if (slots.some((s) => s.player?.playerId === player.playerId)) return []
   // Franchise cricket limits how many overseas players take the field.
   if (
     rules.overseasCap &&
@@ -155,7 +161,7 @@ export function openSlotsFor(
 
   // Taking this player removes them from everything still to be filled.
   const counts = feas.counts.slice()
-  const mine = feas.maskFor.get(player.name)
+  const mine = feas.maskFor.get(player.playerId)
   if (mine !== undefined && counts[mine] > 0) counts[mine]--
 
   const openRoles = slots.filter((s) => !s.player).map((s) => s.role)
@@ -259,7 +265,7 @@ export function poolFor(config: DraftConfig): Squad[] {
     })
   }
   // Prime drafts redraw every card at the player's career peak.
-  return pool.map((s) => squadRated(s, config.ratingMode ?? 'SEASON'))
+  return pool.map((s) => squadRated(s, config.ratingMode ?? 'SEASON', config.format))
 }
 
 /**
@@ -271,7 +277,7 @@ export function canFillPreset(pool: Squad[], presetId: string): boolean {
   const slotRoles = presetById(presetId).slots
 
   /*
-   * Unique players by name, and every role they have filled in this pool.
+   * Unique players, and every role they have filled in this pool.
    *
    * The union across their seasons rather than the roles on their best card,
    * because a draft picks a version and not a player: someone who was an
@@ -281,15 +287,15 @@ export function canFillPreset(pool: Squad[], presetId: string): boolean {
    * one of them tops their own card, so a balanced XI was greyed out for a
    * club that can comfortably fill it.
    */
-  const rolesByName = new Map<string, Set<Role>>()
+  const rolesByPlayer = new Map<string, Set<Role>>()
   for (const s of pool) {
     for (const p of s.players) {
-      const seen = rolesByName.get(p.name) ?? new Set<Role>()
+      const seen = rolesByPlayer.get(p.playerId) ?? new Set<Role>()
       for (const r of rolesOf(p)) seen.add(r)
-      rolesByName.set(p.name, seen)
+      rolesByPlayer.set(p.playerId, seen)
     }
   }
-  const players = [...rolesByName.values()]
+  const players = [...rolesByPlayer.values()]
   if (players.length < XI_SIZE) return false
 
   // slotIndex -> playerIndex

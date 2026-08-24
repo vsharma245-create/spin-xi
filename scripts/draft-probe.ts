@@ -186,8 +186,12 @@ function playDraft(config: DraftConfig, seed: number, taste: Taste) {
   if (!isComplete(slots)) problems.push(`stalled at ${xi.length}/11 after ${draws} draws`)
   if (skipsUsed > maxSkips) problems.push(`used ${skipsUsed} re-rolls of ${maxSkips}`)
 
-  const names = new Set(xi.map((p) => p.name))
-  if (names.size !== xi.length) problems.push('the same player twice')
+  /*
+   * By player, not by name. Forty-one names in the archive belong to two
+   * different cricketers, and both are perfectly entitled to a place.
+   */
+  const people = new Set(xi.map((p) => p.playerId))
+  if (people.size !== xi.length) problems.push('the same player twice')
 
   // The shape on the screen is the preset that was chosen, not a near miss.
   const want = [...presetById(config.presetId).slots].sort()
