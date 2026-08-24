@@ -22,7 +22,6 @@ import { hydrateChallenges, todaysChallenge } from '../src/data/challenges'
 import {
   botPick, drawOrder, seatSlots, snakeSeat, squadForPick, totalPicks,
 } from '../src/game/live'
-import { playSeason } from '../src/game/sim'
 import {
   buildSlots, canFillPreset, canSwap, drawFromSequence, drawSquad, filledCount, isComplete,
   makeRng, moveSlot,
@@ -526,7 +525,7 @@ function playDraft(config: DraftConfig, seed: number, taste: Taste) {
     for (const preset of PRESETS) {
       for (const seats of [2, 3, 4]) {
         for (const worldTeams of [true, false]) {
-          const [lo, hi] = yearsForFormat(format)
+          const [, hi] = yearsForFormat(format)
           const config = base({
             format, presetId: preset.id, scope: 'ALL', worldTeams,
             overseasCap: !worldTeams, years: [hi - 4, hi],
