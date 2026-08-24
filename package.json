@@ -19,6 +19,7 @@
     "db:check": "node scripts/db-check.mjs",
     "live:check": "esbuild scripts/live-probe.ts --bundle --platform=node --format=esm --outfile=.live-probe.mjs --external:@electric-sql/pglite --log-level=error && node .live-probe.mjs; rm -f .live-probe.mjs",
     "cards:check": "esbuild scripts/card-probe.ts --bundle --platform=node --format=esm --outfile=.card-probe.mjs --external:@electric-sql/pglite --log-level=error && node .card-probe.mjs; rm -f .card-probe.mjs",
+    "combos:check": "esbuild scripts/combo-probe.ts --bundle --platform=node --format=esm --outfile=.combo-probe.mjs --external:@electric-sql/pglite --log-level=error && node .combo-probe.mjs; rm -f .combo-probe.mjs",
     "audit": "node scripts/audit.mjs",
     "rows:check": "esbuild scripts/row-probe.ts --bundle --platform=node --format=esm --outfile=.row-probe.mjs --external:@electric-sql/pglite --log-level=error && node .row-probe.mjs; rm -f .row-probe.mjs"
   },

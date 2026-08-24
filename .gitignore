@@ -34,3 +34,4 @@ dist-ssr
 .live-probe.mjs
 .card-probe.mjs
 .row-probe.mjs
+.combo-probe.mjs
