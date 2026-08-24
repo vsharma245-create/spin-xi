@@ -102,7 +102,7 @@ export function PlayerCard({
       transition={{ type: 'spring', stiffness: 420, damping: 28 }}
       className={[
         'group relative flex w-full flex-col overflow-hidden rounded-card border text-left transition-colors',
-        hero ? 'p-5' : 'p-3.5',
+        hero ? 'p-4 md:p-5' : 'p-3 md:p-3.5',
         disabled
           ? 'cursor-not-allowed border-white/[0.05] bg-ink-800'
           : selected
@@ -125,7 +125,7 @@ export function PlayerCard({
       <span
         aria-hidden
         className={`pointer-events-none absolute right-2 select-none font-display font-black leading-none tracking-tight3 text-white/[0.045] ${
-          hero ? 'bottom-1 text-[128px]' : 'bottom-0 text-[86px]'
+          hero ? 'bottom-1 text-[96px] md:text-[128px]' : 'bottom-0 text-[62px] md:text-[86px]'
         }`}
       >
         {monogram(player.name)}
@@ -134,7 +134,11 @@ export function PlayerCard({
       {/* ── OVR + role ── */}
       <div className="relative z-10 flex items-start justify-between">
         <div className="flex items-baseline gap-1.5">
-          <span className={`stat-num ${hero ? 'text-[46px]' : 'text-[34px]'} ${hideRatings ? 'text-moss' : tier.text}`}>
+          <span
+            className={`stat-num ${
+              hero ? 'text-[38px] md:text-[46px]' : 'text-[26px] md:text-[34px]'
+            } ${hideRatings ? 'text-moss' : tier.text}`}
+          >
             {hideRatings ? '••' : player.ovr}
           </span>
           {hero && !hideRatings && <span className="label mb-1">ovr</span>}
@@ -155,22 +159,41 @@ export function PlayerCard({
       </div>
 
       {/* ── name ── */}
-      <div className={`relative z-10 ${hero ? 'mt-7' : 'mt-5'}`}>
+      <div className={`relative z-10 ${hero ? 'mt-5 md:mt-7' : 'mt-3 md:mt-5'}`}>
         <div
           className={`flex items-center gap-1 truncate font-semibold uppercase tracking-[0.14em] text-moss ${
             hero ? 'text-[11px]' : 'text-[9px]'
           }`}
         >
           <span className={hero ? 'text-[13px]' : 'text-[11px]'}>{flagOf(player.nation)}</span>
-          <span className="truncate">{first || player.teamShort}</span>
+          {/* Only a real given name goes here. Names printed whole — "Usman
+              Shinwari", "Rashid Khan" — have none to show, and falling back to
+              the club put the team above the player and again directly below
+              him, which read like a mistake. */}
+          {first && <span className="truncate">{first}</span>}
         </div>
-        <div className={`display truncate text-cream ${hero ? 'text-[30px]' : 'text-[19px]'}`} title={player.name}>
+        {/* A long name is set smaller rather than cut off. "Usman Shinwari"
+            arrived as "USMAN SHIN…", which is not a name — and on a phone the
+            card is narrow enough that this is the common case, not the edge
+            one. */}
+        <div
+          className={`display truncate text-cream ${
+            hero
+              ? 'text-[24px] md:text-[30px]'
+              : player.surname.length > 13
+                ? 'text-[13px] md:text-[16px]'
+                : player.surname.length > 10
+                  ? 'text-[15px] md:text-[18px]'
+                  : 'text-[17px] md:text-[19px]'
+          }`}
+          title={player.name}
+        >
           {player.surname}
         </div>
       </div>
 
       {/* ── team + season ── */}
-      <div className="relative z-10 mt-2.5 flex items-center gap-1.5 border-t border-white/[0.07] pt-2.5">
+      <div className="relative z-10 mt-2 flex items-center gap-1.5 border-t border-white/[0.07] pt-2 md:mt-2.5 md:pt-2.5">
         <span
           className={`min-w-0 flex-1 truncate font-semibold uppercase tracking-[0.06em] text-cream-dim ${
             hero ? 'text-[11px]' : 'text-[9.5px]'

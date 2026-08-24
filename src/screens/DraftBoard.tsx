@@ -318,10 +318,15 @@ export default function DraftBoard({
                       </div>
                       <div className="mt-1.5 flex items-end justify-between gap-3">
                         <TeamCrest teamKey={target.teamKey} teamName={target.team} size={38} />
-                        <h2 className="display min-w-0 flex-1 text-[26px] leading-none md:text-[32px]">
+                        {/* The club is the headline; the season is a caption.
+                            At 375px the year was set larger than the name and
+                            refused to shrink, so "Oval Invincibles" was squeezed
+                            into 171px and broke across two lines while "2025"
+                            kept 76px to itself. */}
+                        <h2 className="display min-w-0 flex-1 text-[21px] leading-[1.05] md:text-[32px]">
                           {target.team}
                         </h2>
-                        <span className="stat-num shrink-0 text-[30px] text-gold md:text-[36px]">
+                        <span className="stat-num shrink-0 text-[17px] text-gold md:text-[36px]">
                           {target.season}
                         </span>
                       </div>

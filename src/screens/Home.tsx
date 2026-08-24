@@ -89,12 +89,17 @@ export default function Home() {
       {/* ── Stat strip ── */}
       <div className="mt-10 grid grid-cols-3 gap-2">
         {[
-          { v: data.squads, l: 'squad seasons' },
-          { v: data.players, l: 'player seasons' },
-          { v: data.range, l: 'seasons covered' },
+          /* Short labels because there are three of these across a phone and
+             the long ones broke over two lines every time — "seasons covered"
+             under a year range that had itself split at the dash. */
+          { v: data.squads, l: 'squads' },
+          { v: data.players, l: 'players' },
+          { v: data.range, l: 'seasons' },
         ].map((s) => (
           <div key={s.l} className="surface px-2 py-3 text-center">
-            <div className="stat-num text-[22px] text-cream">{s.v}</div>
+            <div className="stat-num whitespace-nowrap text-[17px] text-cream md:text-[22px]">
+              {s.v}
+            </div>
             <div className="label mt-1">{s.l}</div>
           </div>
         ))}

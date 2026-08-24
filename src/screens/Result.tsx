@@ -172,7 +172,7 @@ export default function Result({
           initial={{ scale: 0.86, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 240, damping: 18, delay: 0.08 }}
-          className={`display mt-3 text-[40px] leading-[0.88] md:text-[62px] ${
+          className={`display mt-3 text-[32px] leading-[0.9] md:text-[62px] ${
             result.perfect
               ? 'text-gold [text-shadow:0_0_46px_rgba(229,168,60,0.45)]'
               : champion
@@ -189,7 +189,7 @@ export default function Result({
           transition={{ delay: 0.24 }}
           className="mt-3 flex items-center justify-center gap-4"
         >
-          <span className="stat-num text-[52px] text-cream md:text-[64px]">{recordOf(result)}</span>
+          <span className="stat-num text-[38px] text-cream md:text-[64px]">{recordOf(result)}</span>
           <div className="text-left">
             <div className="stat-num text-[24px] text-pitch">{result.points}</div>
             <div className="label">points</div>
@@ -384,13 +384,13 @@ export default function Result({
           </SectionLabel>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {records.map((r) => (
-              <div key={r.label} className="surface px-3 py-2.5">
+              <div key={r.label} className="surface flex flex-col px-3 py-2.5">
                 <span className="label">{r.label}</span>
                 <div className="tnum mt-1 text-[22px] font-bold leading-none text-cream">
                   {r.figure}
                 </div>
                 <div className="mt-1 truncate text-[11px] font-bold text-cream">{r.who}</div>
-                <div className="truncate text-[10px] leading-snug text-moss">{r.detail}</div>
+                <div className="text-[10px] leading-snug text-moss">{r.detail}</div>
               </div>
             ))}
           </div>

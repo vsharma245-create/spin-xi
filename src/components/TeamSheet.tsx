@@ -26,9 +26,10 @@ export function XIRail({
           {slots.filter((s) => s.player).length} / {slots.length} · tap to open
         </span>
       </div>
-      {/* A little room past the last chip, so the rail ends rather than
-          looking as though it has been cut off by the screen edge. */}
-      <div className="no-bar flex gap-1 overflow-x-auto pb-0.5 pr-3">
+      {/* All eleven fit across a phone. They used to overflow and scroll,
+          which meant the eleventh was permanently half-cut at the screen edge
+          and read as a rendering fault rather than as something to swipe. */}
+      <div className="no-bar flex gap-[3px] overflow-x-auto pb-0.5 md:gap-1 md:pr-3">
         {slots.map((s, i) => {
           const role = ROLE_STYLE[s.role]
           const tier = s.player ? ovrTier(s.player.ovr) : null
@@ -41,7 +42,7 @@ export function XIRail({
                   : {}
               }
               transition={{ duration: 0.55, ease: 'easeOut' }}
-              className={`flex h-[42px] min-w-[33px] flex-1 flex-col items-center justify-center rounded-lg border ${
+              className={`flex h-[38px] min-w-[26px] flex-1 flex-col items-center justify-center rounded-lg border md:h-[42px] md:min-w-[33px] ${
                 s.player
                   ? `${tier!.border} ${tier!.bg}`
                   : 'border-dashed border-white/[0.14] bg-white/[0.02]'
@@ -49,8 +50,8 @@ export function XIRail({
             >
               {s.player ? (
                 <>
-                  <span className={`stat-num text-[13px] ${tier!.text}`}>{s.player.ovr}</span>
-                  <span className="max-w-[30px] truncate text-[6.5px] font-bold uppercase tracking-wider text-moss">
+                  <span className={`stat-num text-[12px] md:text-[13px] ${tier!.text}`}>{s.player.ovr}</span>
+                  <span className="w-full truncate px-0.5 text-center text-[6px] font-bold uppercase tracking-tight text-moss md:text-[6.5px] md:tracking-wider">
                     {s.player.surname}
                   </span>
                 </>

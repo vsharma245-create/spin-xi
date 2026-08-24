@@ -37,7 +37,10 @@ export function Field({ slots, captainId }: { slots: Slot[]; captainId?: string 
 
   return (
     <div className="pitch-panel pitch-stripes relative overflow-hidden p-2">
-      <svg viewBox="0 0 300 340" className="w-full">
+      {/* Capped on a phone. At full width the 300x340 box came out over four
+          hundred pixels tall — most of a screen given to an empty outfield,
+          and a long scroll past it to reach the team sheet. */}
+      <svg viewBox="0 0 300 340" className="mx-auto block max-h-[290px] w-full md:max-h-none">
         {/* boundary */}
         <ellipse cx="150" cy="190" rx="142" ry="146" fill="#0C1712" stroke="#35D07F" strokeOpacity="0.18" />
         <ellipse cx="150" cy="190" rx="122" ry="126" fill="none" stroke="#35D07F" strokeOpacity="0.1" strokeDasharray="3 5" />
