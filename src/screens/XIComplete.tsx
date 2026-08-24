@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { Field } from '../components/Field'
 import { TeamSheetList } from '../components/TeamSheet'
 import { Button, Pill, SectionLabel, StatCard } from '../components/ui'
-import { overseasCount, reorderXI, suggestCaptain, teamRatings } from '../game/draft'
+import { overseasCount, reorderXI, suggestCaptain, teamRatings, xiOf } from '../game/draft'
+import { chemistryOf } from '../game/chemistry'
 import { pitchSuitability } from '../game/sim'
 import { OVERSEAS_LIMIT } from '../data/nations'
 import { PITCH, TOURNAMENTS } from '../game/types'
@@ -28,6 +29,8 @@ export default function XIComplete({
   }, [state, setState])
 
   const ratings = teamRatings(state.slots, state.captainId)
+  // Who in this side has actually played alongside whom, read off the archive.
+  const chemistry = chemistryOf(xiOf(state.slots))
   const suits = pitchSuitability(state.slots, ratings)
   const overseas = overseasCount(state.slots)
 
@@ -54,6 +57,33 @@ export default function XIComplete({
         <StatCard label="bowling" value={ratings.bowling} />
         <StatCard label="balance" value={ratings.balance} accent={ratings.balance >= 80 ? 'cream' : 'gold'} />
       </div>
+
+      {/* ── How well they know each other ── */}
+      {chemistry.pairs.length > 0 && (
+        <div className="surface mt-3 px-3.5 py-3">
+          <div className="flex items-baseline justify-between">
+            <span className="label">understanding</span>
+            <span className="tnum text-[19px] font-bold leading-none text-pitch">
+              {chemistry.score}
+            </span>
+          </div>
+          <div className="mt-2 space-y-1">
+            {chemistry.pairs.map((p) => (
+              <div key={`${p.a.id}-${p.b.id}`} className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-[11.5px] font-semibold text-cream">
+                  {p.a.surname} &amp; {p.b.surname}
+                </span>
+                <span className="tnum shrink-0 text-[10.5px] text-moss">
+                  {p.seasons} seasons together
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] leading-snug text-moss">
+            Players who have spent seasons in the same side. Worth a little in a close match.
+          </p>
+        </div>
+      )}
 
       {/* ── Field ── */}
       <div className="mt-4">

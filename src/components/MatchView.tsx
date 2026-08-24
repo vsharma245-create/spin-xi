@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { SKY_LABEL, TIME_LABEL } from '../game/conditions'
 import { PitchIcon, TeamCrest } from './icons'
 import { PITCH } from '../game/types'
 import type { BatLine, BowlLine, MatchResult } from '../game/types'
@@ -281,7 +282,47 @@ export function MatchCardView({ match, teamName }: { match: MatchResult; teamNam
           v {match.opponent} · ovr {c.theirRating}
           {match.tossWon !== undefined && ` · toss ${match.tossWon ? 'won' : 'lost'}`}
         </div>
+        {/* The afternoon it was played in. A scorecard that says only who won
+            leaves out what everyone at the ground was talking about. */}
+        {match.conditions && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-moss/85">
+            <span>{TIME_LABEL[match.conditions.time]}</span>
+            <span className="text-moss/40">·</span>
+            <span>{SKY_LABEL[match.conditions.sky]}</span>
+            {match.conditions.dew && (
+              <>
+                <span className="text-moss/40">·</span>
+                <span className="text-gold">Dew</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* ── What the crowd went home talking about ── */}
+      {(match.card?.spectacle?.six || match.card?.spectacle?.fastest) && (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {match.card.spectacle.six && (
+            <div className="surface px-3 py-2">
+              <span className="label">biggest hit</span>
+              <div className="tnum mt-0.5 text-[19px] font-bold leading-none text-cream">
+                {match.card.spectacle.six.metres}m
+              </div>
+              <div className="truncate text-[10.5px] text-moss">{match.card.spectacle.six.who}</div>
+            </div>
+          )}
+          {match.card.spectacle.fastest && (
+            <div className="surface px-3 py-2">
+              <span className="label">fastest ball</span>
+              <div className="tnum mt-0.5 text-[19px] font-bold leading-none text-cream">
+                {match.card.spectacle.fastest.kph}
+                <span className="text-[11px] text-moss"> kph</span>
+              </div>
+              <div className="truncate text-[10.5px] text-moss">{match.card.spectacle.fastest.who}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Key moments ── */}
       <div className="mt-4">

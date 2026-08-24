@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LeagueTable } from '../components/LeagueTable'
 import { MatchDrawer, MatchRow } from '../components/MatchView'
 import { starsOf } from '../game/opponents'
-import { Button } from '../components/ui'
-import { favoursBatting, finishRun, ordinal, playKnockout, qualifyCutoff, startRun } from '../game/sim'
+import { Button, Pill } from '../components/ui'
+import { finishRun, ordinal, playKnockout, qualifyCutoff, startRun } from '../game/sim'
+import { SKY_LABEL, TIME_LABEL, shouldBatFirst, tossReason } from '../game/conditions'
 import { PITCH, TOURNAMENTS } from '../game/types'
 import type { DraftConfig, DraftMode, MatchResult, Slot, TournamentResult } from '../game/types'
 
@@ -110,7 +111,7 @@ export default function Simulation({
     if (!config.liveToss) {
       const won = randRef.current() < 0.5
       const id = window.setTimeout(
-        () => resolveKnockout({ won, batFirst: favoursBatting(spec.pitch) === won }),
+        () => resolveKnockout({ won, batFirst: shouldBatFirst(spec.conditions) === won }),
         520,
       )
       return () => window.clearTimeout(id)
@@ -454,6 +455,13 @@ export default function Simulation({
                 <p className={`display text-[19px] ${tossWon ? 'text-pitch' : 'text-leather'}`}>
                   {tossWon ? 'YOU WON THE TOSS' : 'TOSS LOST'}
                 </p>
+                {/* What the captains are looking at. A call to bat or bowl is
+                    only a decision if there is something to read. */}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Pill shout={false}>{TIME_LABEL[spec.conditions.time]}</Pill>
+                  <Pill shout={false}>{SKY_LABEL[spec.conditions.sky]}</Pill>
+                  {spec.conditions.dew && <Pill tone="gold" shout={false}>Dew expected</Pill>}
+                </div>
                 {tossWon ? (
                   <>
                     <p className="label-lg mb-2 mt-3">your call</p>
@@ -481,19 +489,17 @@ export default function Simulation({
                     <p className="text-[12px] leading-snug text-cream">
                       <span className="font-bold">{spec.opponent.name}</span> won the toss and
                       chose to <span className="font-bold">
-                        {favoursBatting(spec.pitch) ? 'bat' : 'bowl'}
+                        {shouldBatFirst(spec.conditions) ? 'bat' : 'bowl'}
                       </span> first.
                     </p>
                     <p className="mt-1 text-[10.5px] leading-snug text-moss">
-                      {favoursBatting(spec.pitch)
-                        ? 'They fancied the surface and took first use of it.'
-                        : 'They read something in the pitch and put you in.'}
+                      Their captain reckons {tossReason(spec.conditions)}.
                     </p>
                     <Button
                       full
                       className="mt-3"
                       onClick={() =>
-                        resolveKnockout({ won: false, batFirst: !favoursBatting(spec.pitch) })
+                        resolveKnockout({ won: false, batFirst: !shouldBatFirst(spec.conditions) })
                       }
                     >
                       Play on →

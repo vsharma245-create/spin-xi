@@ -297,6 +297,50 @@ const tempoOf = (p: PlayerSeason) => {
 const battingOrderOf = (squad: PlayerSeason[]) =>
   [...squad].sort((a, b) => b.bat - a.bat)
 
+/* ── Spectacle ───────────────────────────────────────────────────────────
+ *
+ * The two things a crowd talks about on the way home and a scorecard never
+ * records: how far the biggest one went, and how quick the fastest ball was.
+ *
+ * Neither is in the ball-by-ball data and neither could be — Cricsheet says a
+ * six was hit, not where it landed. But the match is simulated in the first
+ * place: the runs, the wickets and the scorecard are all made up, consistently
+ * with what the players were. These belong to the same fiction, and they are
+ * drawn from the players who did it — the hardest hitter in the innings and
+ * the quickest bowler in the attack — so a Malinga yorker reads faster than a
+ * part-timer's, and Gayle clears more rows than a nightwatchman.
+ */
+
+/** The biggest hit of the innings, by the man most likely to have played it. */
+function longestSix(batting: BatLine[], xi: PlayerSeason[], rand: () => number) {
+  const scorers = batting.filter((b) => !b.dnb && b.runs >= 15)
+  if (!scorers.length) return null
+  const cardOf = new Map(xi.map((p) => [p.surname.toUpperCase(), p]))
+  // Whoever scored quickest is the likeliest to have gone furthest.
+  const hitter = [...scorers].sort((a, b) => b.runs / b.balls - a.runs / a.balls)[0]
+  const power = cardOf.get(hitter.name)?.stats.find((st) => st.label === 'SR')?.value ?? 70
+  const metres = Math.round(78 + ((power - 40) / 59) * 22 + rand() * 8)
+  return { who: hitter.name, metres }
+}
+
+/** The quickest ball bowled, from whoever in the attack could bowl it. */
+function fastestBall(bowling: BowlLine[], xi: PlayerSeason[], rand: () => number) {
+  const cardOf = new Map(xi.map((p) => [p.surname.toUpperCase(), p]))
+  const quicks = bowling
+    .map((b) => ({ line: b, card: cardOf.get(b.name) }))
+    .filter((x) => x.card?.role === 'PACE')
+  if (!quicks.length) return null
+  /*
+   * Usually the quickest man in the side, but not always the same name every
+   * match — the second seamer beats his own record often enough, and a season
+   * where one bowler owns every fastest ball reads like a spreadsheet.
+   */
+  const ranked = quicks.sort((a, b) => (b.card?.bowl ?? 0) - (a.card?.bowl ?? 0))
+  const pick = ranked[rand() < 0.7 ? 0 : Math.min(1, ranked.length - 1)]
+  const kph = Math.round(131 + (((pick.card?.bowl ?? 60) - 40) / 59) * 20 + rand() * 5)
+  return { who: pick.line.name, kph }
+}
+
 /* ── Narrative ───────────────────────────────────────────────────────────── */
 
 function moments(
@@ -451,6 +495,11 @@ export function buildCard(o: {
   const theirBowler = theirSpell?.name ?? spearhead(o.opponent).surname
   const theirBestRuns = theirTop?.runs ?? Math.round(o.theirRuns * 0.3)
 
+  const spectacle = {
+    six: longestSix(batting, o.xi, rand),
+    fastest: fastestBall(bowling, o.xi, rand),
+  }
+
   const topBat = [...batting].sort((a, b) => b.runs - a.runs)[0]
   const topBowl = [...bowling].sort((a, b) => b.wickets * 40 - b.runs - (a.wickets * 40 - a.runs))[0]
 
@@ -546,6 +595,7 @@ export function buildCard(o: {
       o.outcome === 'D'
         ? `Drawn · ${hero.name} ${hero.line}`
         : `${o.outcome === 'W' ? 'Won' : 'Lost'} ${o.margin} · ${hero.name} ${hero.line}`,
+    spectacle,
     theirBest: `${theirBest} ${theirBestRuns}`,
     theirRating: o.opponent.ratings.ovr,
     theirSquad: `${o.opponent.short} ${o.opponent.season}`,

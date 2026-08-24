@@ -1,3 +1,4 @@
+import type { Conditions } from './conditions'
 export type Role = 'WK' | 'BAT' | 'AR' | 'PACE' | 'SPIN'
 
 /** The four playable tournaments. */
@@ -372,6 +373,15 @@ export interface MatchCard {
    * match — simply were not on the card.
    */
   innings?: InningsCard[]
+  /**
+   * The two things a crowd talks about on the way home and a scorecard never
+   * records. Simulated like everything else on this card, from the players who
+   * did it — absent when nobody in the side could have.
+   */
+  spectacle?: {
+    six: { who: string; metres: number } | null
+    fastest: { who: string; kph: number } | null
+  }
   /** Runs we made, and the wickets we lost. */
   ourScore: { runs: number; wickets: number; overs: string }
   theirScore: { runs: number; wickets: number; overs: string }
@@ -413,6 +423,8 @@ export interface MatchResult {
   battedFirst: boolean
   knockout: boolean
   pitch: PitchType
+  /** The afternoon it was played in — sky, lights, dew. */
+  conditions: Conditions
   /** Only set for knockouts the player called themselves. */
   tossWon?: boolean
   /** Standout performance of the match, for the scorecard. */

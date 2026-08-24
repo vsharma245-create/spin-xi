@@ -1,6 +1,7 @@
 import { clamp } from './draft'
 import { opponentPool, sideLabel } from './opponents'
-import { PITCH_TYPES, favoursBatting, playMatch, strengthOf, strengthOnPitch, winProbability } from './sim'
+import { PITCH_TYPES, playMatch, strengthOf, strengthOnPitch, winProbability } from './sim'
+import { conditionsEdge, conditionsFor, shouldBatFirst } from './conditions'
 import { TROPHY_ROUNDS } from './types'
 import type {
   Opponent,
@@ -101,8 +102,20 @@ export function playTrophyTie(
    * the strongest sides in world cricket rather than a league's spread, and
    * each round is harder than the last.
    */
+  /*
+   * The same afternoon the rest of the game plays in: a heavy sky, dew under
+   * the lights, a surface that will turn. Drawn once, before the result, so
+   * the toss and the scorecard agree about it.
+   */
+  const conditions = conditionsFor('T20L', pitch, rand)
+  const theirCall = shouldBatFirst(conditions)
+
   let p = winProbability(ours - theirs, 'T20L') - k * ROUND_STEP
-  if (toss?.won) p += toss.batFirst === favoursBatting(pitch) ? 0.09 : 0.02
+  if (toss?.won) p += toss.batFirst === theirCall ? 0.09 : 0.02
+  const weBatFirst = toss ? (toss.won ? toss.batFirst : !theirCall) : rand() < 0.5
+  // Worth a little less here than in a league match, because an invitational
+  // is already weighted by how far through the rounds you are.
+  p += conditionsEdge(conditions, weBatFirst) * 0.012
 
   const match = playMatch(
     k + 1,
@@ -115,8 +128,9 @@ export function playTrophyTie(
     true,
     pitch,
     rand,
+    conditions,
     toss?.won,
-    toss?.batFirst,
+    weBatFirst,
   )
 
   const tie: TrophyTie = { round, opponent, match }

@@ -1,5 +1,8 @@
 import { buildCard } from './card'
 import { clamp, teamRatings, xiOf } from './draft'
+import { conditionsEdge, conditionsFor, shouldBatFirst } from './conditions'
+import { chemistryEdge, chemistryOf } from './chemistry'
+import type { Conditions } from './conditions'
 import { fixtureList, opponentPool } from './opponents'
 import { PITCH, scoreOf, TOURNAMENTS, tierOf } from './types'
 import type {
@@ -348,6 +351,7 @@ export function playMatch(
   knockout: boolean,
   pitch: PitchType,
   rand: () => number,
+  conditions: Conditions,
   tossWon?: boolean,
   forcedBatFirst?: boolean,
 ): MatchResult {
@@ -391,6 +395,7 @@ export function playMatch(
     battedFirst,
     knockout,
     pitch,
+    conditions,
     tossWon,
     hero,
     card,
@@ -512,7 +517,7 @@ export interface Run {
   points: number
   qualified: boolean
   /** Knockout rounds still to play, with their pitch drawn up front. */
-  rounds: { round: string; pitch: PitchType; opponent: Opponent }[]
+  rounds: { round: string; pitch: PitchType; conditions: Conditions; opponent: Opponent }[]
   knockouts: MatchResult[]
 }
 
@@ -541,15 +546,32 @@ export function startRun(
     ratingMode,
     world: worldTeams,
   })
+  /*
+   * How well the side knows itself, worked out once for the season. Eleven
+   * players who have spent years in the same dressing rooms are worth a little
+   * more than eleven strangers of the same rating.
+   */
+  const chemistry = chemistryOf(xi)
+  const chemEdge = chemistryEdge(chemistry)
+
   const fixtures = fixtureList(pool, t.group, rand)
 
   const group: MatchResult[] = []
   for (let i = 0; i < t.group; i++) {
     const them = fixtures[i]
     const pitch = PITCH_TYPES[Math.floor(rand() * PITCH_TYPES.length)]
+    /*
+     * Drawn once, before the match is decided, so the toss, the scoring and
+     * the scorecard all describe the same afternoon.
+     */
+    const conditions = conditionsFor(format, pitch, rand)
+    // Nobody calls the toss in a group game, so who bats first is the coin.
+    const weBatFirst = rand() < 0.5
     const edge =
       strengthOnPitch(base, ratings, attack, pitch) -
-      strengthOnPitch(strengthOf(them.ratings), them.ratings, them.attack, pitch)
+      strengthOnPitch(strengthOf(them.ratings), them.ratings, them.attack, pitch) +
+      conditionsEdge(conditions, weBatFirst) +
+      chemEdge
     const pWin = winProbability(edge, format)
     const pDraw = t.draws ? drawProbability(edge) : 0
 
@@ -575,6 +597,9 @@ export function startRun(
         false,
         pitch,
         rand,
+        conditions,
+        undefined,
+        weBatFirst,
       ),
     )
   }
@@ -605,11 +630,14 @@ export function startRun(
     .filter((o): o is Opponent => !!o)
 
   const rounds = qualified
-    ? t.knockouts.map((round, k) => ({
+    ? t.knockouts.map((round, k) => {
+        const pitch = PITCH_TYPES[Math.floor(rand() * PITCH_TYPES.length)]
+        return {
         round,
-        pitch: PITCH_TYPES[Math.floor(rand() * PITCH_TYPES.length)],
+        pitch,
+        conditions: conditionsFor(format, pitch, rand),
         opponent: survivors[k % Math.max(survivors.length, 1)] ?? pool[k % pool.length],
-      }))
+      } })
     : []
 
   return {
@@ -649,6 +677,7 @@ export function playKnockout(
 
   // Knockouts tighten up; the final tightest of all.
   edge -= 2 + k * 1.5
+  edge += chemistryEdge(chemistryOf(run.xi))
 
   /*
    * The toss cuts both ways. Winning it and reading the surface right was
@@ -657,12 +686,21 @@ export function playKnockout(
    * the coin had never gone up. Their advantage is the mirror of ours, a
    * little smaller because they take the obvious option rather than a read.
    */
+  /*
+   * The toss cuts both ways, and both sides are reading the same afternoon:
+   * a heavy sky, dew later, a surface that will turn. Winning it and reading
+   * it right is worth a real edge; losing it hands that edge over.
+   */
+  const theirCall = shouldBatFirst(spec.conditions)
   if (toss?.won) {
-    const readItRight = toss.batFirst === favoursBatting(spec.pitch)
+    const readItRight = toss.batFirst === theirCall
     edge += readItRight ? 3.2 : 0.6
   } else if (toss) {
     edge -= 2.4
   }
+  // Whoever ends up batting first, the conditions themselves still count.
+  const weBatFirst = toss ? (toss.won ? toss.batFirst : !theirCall) : rand() < 0.5
+  edge += conditionsEdge(spec.conditions, weBatFirst)
 
   const pWin = winProbability(edge, format)
   // Knockouts must produce a result, so a draw is re-rolled.
@@ -679,8 +717,9 @@ export function playKnockout(
     true,
     spec.pitch,
     rand,
+    spec.conditions,
     toss?.won,
-    toss?.batFirst,
+    weBatFirst,
   )
 
   run.knockouts.push(match)

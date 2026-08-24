@@ -6,12 +6,12 @@
  * the hundred, the five-for, the innings that won a match on its own — and
  * they are already sitting in the match cards; nothing new is simulated here.
  *
- * Deliberately missing: the longest six and the fastest delivery. Both were
- * asked for and neither exists. Cricsheet records what happened ball by ball,
- * not how far the ball went or how quickly it was bowled, so those two figures
- * could only be invented — and a made-up number sitting beside real ones is
- * worse than an absent one, because there is nothing on the screen to say
- * which is which.
+ * The biggest hit and the fastest ball are here too, and they are simulated
+ * rather than recorded — Cricsheet says a six was hit, not where it landed.
+ * That is the same standing as everything else on this page: the matches never
+ * happened, so every run and wicket beside them is invented as well. What
+ * would not be allowed is a fabricated figure attached to a real career, and
+ * none of these are.
  */
 import type { BatLine, BowlLine, MatchResult } from './types'
 
@@ -48,9 +48,18 @@ export function seasonRecords(matches: MatchResult[]): Record_[] {
   let bestFigures: { line: BowlLine; against: string } | null = null
   let bestStrike: { line: BatLine; against: string } | null = null
   let bestEconomy: { line: BowlLine; against: string } | null = null
+  let biggestHit: { who: string; metres: number; against: string } | null = null
+  let quickest: { who: string; kph: number; against: string } | null = null
 
   for (const match of matches) {
     const against = match.opponent
+    const sp = match.card?.spectacle
+    if (sp?.six && (!biggestHit || sp.six.metres > biggestHit.metres)) {
+      biggestHit = { ...sp.six, against }
+    }
+    if (sp?.fastest && (!quickest || sp.fastest.kph > quickest.kph)) {
+      quickest = { ...sp.fastest, against }
+    }
     for (const inn of ourInnings(match)) {
       for (const line of inn.batting) {
         if (line.dnb) continue
@@ -103,6 +112,20 @@ export function seasonRecords(matches: MatchResult[]): Record_[] {
       who: bestEconomy.line.name,
       figure: (bestEconomy.line.runs / Math.max(1, ballsOf(bestEconomy.line.overs) / 6)).toFixed(2),
       detail: `${bestEconomy.line.overs}-${bestEconomy.line.runs} · v ${bestEconomy.against}`,
+    })
+  if (biggestHit)
+    out.push({
+      label: 'biggest hit',
+      who: biggestHit.who,
+      figure: `${biggestHit.metres}m`,
+      detail: `v ${biggestHit.against}`,
+    })
+  if (quickest)
+    out.push({
+      label: 'fastest ball',
+      who: quickest.who,
+      figure: `${quickest.kph}`,
+      detail: `kph · v ${quickest.against}`,
     })
   return out
 }
