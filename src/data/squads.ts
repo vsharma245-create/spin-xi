@@ -165,6 +165,12 @@ export const SQUAD_BY_ID = new Map<string, Squad>()
 
 /** A player's peak across the whole archive, for prime ratings. */
 const PEAK = new Map<string, PlayerSeason>()
+/** Every season a player had in a format, for working out a believable peak. */
+const SEASONS_OF = new Map<string, PlayerSeason[]>()
+/** The peak rating actually used, pulled back toward their ordinary level. */
+const PEAK_OVR = new Map<string, number>()
+/** Seasons of evidence before a best season is taken at face value. */
+const PEAK_PRIOR = 3
 const PRIMED = new Map<string, Squad>()
 
 let stats = { squads: 0, players: 0, earliest: 0, latest: 0 }
@@ -232,6 +238,8 @@ export function hydrate(rows: RosterRow[]): void {
   for (const s of SQUADS) SQUAD_BY_ID.set(s.id, s)
 
   PEAK.clear()
+  PEAK_OVR.clear()
+  SEASONS_OF.clear()
   PRIMED.clear()
   for (const squad of SQUADS) {
     for (const p of squad.players) {
@@ -251,10 +259,42 @@ export function hydrate(rows: RosterRow[]): void {
        */
       for (const format of squad.formats) {
         const key = `${p.playerId}|${format}`
+        const seen = SEASONS_OF.get(key) ?? []
+        seen.push(p)
+        SEASONS_OF.set(key, seen)
         const best = PEAK.get(key)
         if (!best || p.ovr > best.ovr) PEAK.set(key, p)
       }
     }
+  }
+
+  /*
+   * A peak has to be believable, not merely the highest number a player ever
+   * posted.
+   *
+   * Taking the single best season sounds like what "prime" means, and it
+   * quietly wrecked the mode. The maximum of a noisy run is worth more the
+   * noisier the run: an all-time great is near his best most years and gains
+   * almost nothing, while a fringe player's one good summer sits far above
+   * everything else he did. So priming lifted the weak far more than the
+   * strong — Zimbabwe's XI gained twenty-one points and Australia's eight —
+   * and the whole field bunched at the top. A drafted all-star side went from
+   * a seventeen-point edge on the average World Cup team to nine, and lost to
+   * Scotland.
+   *
+   * The peak is pulled back toward the player's own ordinary level in
+   * proportion to how little cricket stands behind it. Fifteen seasons of
+   * evidence and the best of them is genuinely who you are; three seasons and
+   * the best of them is partly luck.
+   */
+  PEAK_OVR.clear()
+  for (const [key, seasons] of SEASONS_OF) {
+    const ovrs = seasons.map((p) => p.ovr).sort((a, b) => a - b)
+    const typical = ovrs[Math.floor(ovrs.length / 2)]
+    const best = ovrs[ovrs.length - 1]
+    const n = ovrs.length
+    const believable = n / (n + PEAK_PRIOR)
+    PEAK_OVR.set(key, Math.round(typical + (best - typical) * believable))
   }
 
   const years = SQUADS.map((s) => seasonYear(s.season))
@@ -278,25 +318,27 @@ const cap = (n: number) => Math.min(99, Math.max(20, Math.round(n)))
  * than copied so the labels still match the role you drafted them into.
  */
 export function primeOf(p: PlayerSeason, format: Format): PlayerSeason {
-  const peak = PEAK.get(`${p.playerId}|${format}`)
-  if (!peak || peak.ovr <= p.ovr) return { ...p, prime: true, peakSeason: p.season }
+  const key = `${p.playerId}|${format}`
+  const peak = PEAK.get(key)
+  const ceiling = PEAK_OVR.get(key) ?? peak?.ovr ?? p.ovr
+  if (!peak || ceiling <= p.ovr) return { ...p, prime: true, peakSeason: p.season }
   /*
    * When the peak season was played in the same role, its figures are the
    * right ones and are taken as they are. Scaling is the fallback for a peak
    * reached in another role — an all-rounder's best year against a card drafted
    * as a batter — where the labels would not line up if they were copied.
    */
-  const k = peak.ovr / p.ovr
+  const k = ceiling / p.ovr
   const stats =
     peak.role === p.role
-      ? (peak.stats.map((s) => ({ ...s })) as [Stat, Stat, Stat])
+      ? (peak.stats.map((s) => ({ ...s, value: cap(s.value * (ceiling / peak.ovr)) })) as [Stat, Stat, Stat])
       : (p.stats.map((s) => ({ ...s, value: cap(s.value * k) })) as [Stat, Stat, Stat])
   return {
     ...p,
-    ovr: peak.ovr,
+    ovr: ceiling,
     stats,
-    bat: peak.role === p.role ? peak.bat : cap(p.bat * k),
-    bowl: peak.role === p.role ? peak.bowl : cap(p.bowl * k),
+    bat: cap((peak.role === p.role ? peak.bat : p.bat) * (peak.role === p.role ? ceiling / peak.ovr : k)),
+    bowl: cap((peak.role === p.role ? peak.bowl : p.bowl) * (peak.role === p.role ? ceiling / peak.ovr : k)),
     prime: true,
     peakSeason: peak.season,
   }

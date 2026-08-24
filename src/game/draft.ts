@@ -325,7 +325,15 @@ export function canFillPreset(pool: Squad[], presetId: string): boolean {
 
 /* ── Drawing a squad ─────────────────────────────────────────────────────── */
 
-/** Picks a squad that can advance the draft, preferring ones not seen recently. */
+/**
+ * Picks a squad that can advance the draft, preferring clubs not seen recently.
+ *
+ * Freshness is by club, not by squad. Keyed on the squad id, Zimbabwe 2016 and
+ * Zimbabwe 2021 were unrelated draws — and with a hundred and sixty-eight
+ * clubs spread over two and a half thousand squad-seasons, a side with fifteen
+ * seasons in the archive kept coming back up while a player wondered why their
+ * XI was turning Zimbabwean.
+ */
 export function drawSquad(
   pool: Squad[],
   slots: Slot[],
@@ -336,7 +344,7 @@ export function drawSquad(
 ): Squad {
   const usable = pool.filter((s) => squadHasPlaceable(s, slots, rules, feas))
   const base = usable.length ? usable : pool
-  const fresh = base.filter((s) => !recent.includes(s.id))
+  const fresh = base.filter((s) => !recent.includes(s.teamKey))
   const from = fresh.length ? fresh : base
   return from[Math.floor(rng() * from.length)]
 }

@@ -61,16 +61,48 @@ export const strengthOf = (r: TeamRatings) =>
  * season winning six matches in seven, and a third of its fixtures were
  * pinned at the ceiling before a ball was bowled.
  */
-const EDGE_WEIGHT: Record<Format, { slope: number; ceiling: number }> = {
-  T20L: { slope: 0.014, ceiling: 0.8 },
-  T20WC: { slope: 0.014, ceiling: 0.8 },
-  ODIWC: { slope: 0.016, ceiling: 0.82 },
-  TEST: { slope: 0.024, ceiling: 0.86 },
+/*
+ * Prime ratings need a steeper slope, because the same difference in quality
+ * shows up as fewer rating points.
+ *
+ * Everybody at their best is a tighter field than everybody in a given season:
+ * a great player is near his ceiling most years and gains little from priming,
+ * while a fringe player's one good summer lifts him a long way. Measured
+ * against the World Cup field, a drafted all-star XI averages seventeen points
+ * of edge on season form and twelve on prime — the same side, the same
+ * opponents, the same superiority expressed in a narrower number.
+ *
+ * Read through one slope, that turned prime into a coin flip: an XI rated 94
+ * went out to Scotland and Namibia because a nine-point edge is worth 64% and
+ * fourteen matches of 64% is a bad fortnight away from a losing record. The
+ * conversion has to know which ruler it is reading.
+ */
+const EDGE_WEIGHT: Record<Format, { slope: number; prime: number; ceiling: number }> = {
+  T20L: { slope: 0.014, prime: 0.028, ceiling: 0.8 },
+  T20WC: { slope: 0.014, prime: 0.028, ceiling: 0.8 },
+  ODIWC: { slope: 0.016, prime: 0.023, ceiling: 0.82 },
+  TEST: { slope: 0.024, prime: 0.040, ceiling: 0.86 },
 }
 
-export const winProbability = (edge: number, format: Format = 'T20L') => {
-  const { slope, ceiling } = EDGE_WEIGHT[format]
-  return clamp(0.5 + edge * slope, 1 - ceiling, ceiling)
+/**
+ * The same superiority, expressed on the season ruler.
+ *
+ * Converting once and early means everything downstream — the odds, the draws,
+ * the rest of the table — reads one scale. Doing it only in the win
+ * probability left Test draws being decided on prime's narrower numbers, so a
+ * great side drew a third of its matches and won 57% of them where the same
+ * XI on season form won 69%.
+ */
+export const scaledEdge = (edge: number, format: Format, ratingMode: RatingMode = 'SEASON') =>
+  ratingMode === 'PRIME' ? edge * (EDGE_WEIGHT[format].prime / EDGE_WEIGHT[format].slope) : edge
+
+export const winProbability = (
+  edge: number,
+  format: Format = 'T20L',
+  ratingMode: RatingMode = 'SEASON',
+) => {
+  const w = EDGE_WEIGHT[format]
+  return clamp(0.5 + scaledEdge(edge, format, ratingMode) * w.slope, 1 - w.ceiling, w.ceiling)
 }
 
 /** Evenly matched Test sides run out of time; mismatches produce results. */
@@ -418,6 +450,7 @@ function buildTable(
   ourDraws: number,
   ourLosses: number,
   rand: () => number,
+  ratingMode: RatingMode = 'SEASON',
 ): TableRow[] {
   const t = TOURNAMENTS[format]
   const strengths = [ourStrength, ...pool.map((o) => strengthOf(o.ratings))]
@@ -443,8 +476,8 @@ function buildTable(
     // hard-coded slope, so the rest of the table was played out under steeper
     // odds than you were — their records spread further apart than yours could,
     // and the position you finished in was measured against a different game.
-    const pWin = winProbability(edge, format)
-    const pDraw = t.draws ? drawProbability(edge) : 0
+    const pWin = winProbability(edge, format, ratingMode)
+    const pDraw = t.draws ? drawProbability(scaledEdge(edge, format, ratingMode)) : 0
     let wins = 0
     let draws = 0
     for (let g = 0; g < t.group; g++) {
@@ -516,6 +549,8 @@ export interface Run {
   losses: number
   points: number
   qualified: boolean
+  /** Which ruler the season is being read on — prime is a tighter field. */
+  ratingMode: RatingMode
   /** Knockout rounds still to play, with their pitch drawn up front. */
   rounds: { round: string; pitch: PitchType; conditions: Conditions; opponent: Opponent }[]
   knockouts: MatchResult[]
@@ -572,8 +607,8 @@ export function startRun(
       strengthOnPitch(strengthOf(them.ratings), them.ratings, them.attack, pitch) +
       conditionsEdge(conditions, weBatFirst) +
       chemEdge
-    const pWin = winProbability(edge, format)
-    const pDraw = t.draws ? drawProbability(edge) : 0
+    const pWin = winProbability(edge, format, ratingMode)
+    const pDraw = t.draws ? drawProbability(scaledEdge(edge, format, ratingMode)) : 0
 
     const r = rand()
     let outcome: Outcome
@@ -609,7 +644,7 @@ export function startRun(
   const losses = group.filter((m) => m.outcome === 'L').length
   const points = wins * t.pointsWin + draws * t.pointsDraw
 
-  const table = buildTable(format, teamName, pool, base, wins, draws, losses, rand)
+  const table = buildTable(format, teamName, pool, base, wins, draws, losses, rand, ratingMode)
   // Your own rate is not modelled — it is added up from the matches you played.
   const mine = table.find((r) => r.us)
   if (mine) mine.nrr = netRunRate(rateFromMatches(group, format))
@@ -642,6 +677,7 @@ export function startRun(
 
   return {
     ratings,
+    ratingMode,
     xi,
     table,
     standing,
@@ -702,7 +738,7 @@ export function playKnockout(
   const weBatFirst = toss ? (toss.won ? toss.batFirst : !theirCall) : rand() < 0.5
   edge += conditionsEdge(spec.conditions, weBatFirst)
 
-  const pWin = winProbability(edge, format)
+  const pWin = winProbability(edge, format, run.ratingMode)
   // Knockouts must produce a result, so a draw is re-rolled.
   const outcome: Outcome = rand() < pWin ? 'W' : 'L'
 

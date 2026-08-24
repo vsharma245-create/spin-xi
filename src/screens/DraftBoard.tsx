@@ -138,7 +138,9 @@ export default function DraftBoard({
       ...state,
       slots,
       currentSquad: null,
-      recent: [state.currentSquad?.id ?? '', ...state.recent].filter(Boolean).slice(0, 4),
+      // The club, and a longer memory of it: eleven picks from a pool of a
+      // hundred and sixty-eight clubs should not keep landing on the same one.
+      recent: [state.currentSquad?.teamKey ?? '', ...state.recent].filter(Boolean).slice(0, 8),
     }
     setPicking(null)
     setHighlight(slotIndex)

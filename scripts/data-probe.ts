@@ -83,15 +83,38 @@ const allCards = SQUADS.flatMap((s) => s.players)
         else lifted++
         if (q.ovr < p.ovr) problems.push(`${p.name} primes below their own season`)
         if (q.playerId !== p.playerId) problems.push(`${p.name} primes into somebody else`)
-        // The prime must be a season this player really played in this format.
-        const best = Math.max(...seen.get(p.playerId)!.map((x) => x.ovr))
-        if (q.ovr !== best) problems.push(`${p.name} (${format}) primed to ${q.ovr}, best in format is ${best}`)
+        /*
+         * Prime is a believable peak, not the highest number a player ever
+         * posted, so it sits between the card in hand and their best season in
+         * this format — never below what they actually did that year, never
+         * above what they ever managed. A player with a long career should end
+         * up near their best; one with three seasons is pulled back, because
+         * the best of three is partly luck.
+         */
+        const all = seen.get(p.playerId)!.map((x) => x.ovr)
+        const best = Math.max(...all)
+        if (q.ovr > best) problems.push(`${p.name} (${format}) primed to ${q.ovr}, above their best of ${best}`)
+        const sorted = [...all].sort((x, y) => x - y)
+        const typical = sorted[Math.floor(sorted.length / 2)]
+        if (q.ovr < typical) {
+          problems.push(`${p.name} (${format}) primed to ${q.ovr}, below his own ordinary ${typical}`)
+        }
+        // A long career should reach most of the way from ordinary to best.
+        // Only where the gap is big enough that rounding is not the whole
+        // story: a best two points above ordinary lands on the same number
+        // either way.
+        if (all.length >= 8 && best - typical >= 5 && q.ovr < typical + (best - typical) * 0.6) {
+          problems.push(
+            `${p.name} (${format}) has ${all.length} seasons but primed to ${q.ovr}, ` +
+              `barely above his ordinary ${typical} against a best of ${best}`,
+          )
+        }
         if (rolesOf(q).join() !== rolesOf(p).join()) problems.push(`${p.name} changes role when primed`)
       }
     }
   }
   check(problems.length === 0,
-    `prime is the player's own best season in the format drafted — ${lifted} lifted, ${atPeak} already there`,
+    `prime is a believable peak of their own — ${lifted} lifted, ${atPeak} already there`,
     problems.length ? `${problems.length} wrong · ${problems.slice(0, 3).join(' · ')}` : '')
 }
 
