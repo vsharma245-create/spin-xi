@@ -335,6 +335,14 @@ let stated = 0
  */
 const CAREER = new Map()
 for (const r of rows) {
+  /*
+   * Only the cricket the archive actually keeps. The career was tallied over
+   * every row Cricsheet had, including competitions this build drops, so a
+   * player's primary role could be decided by matches that never reach the
+   * game — Ashen Bandara read as an all-rounder on bowling the archive does
+   * not contain, next to a career record showing one wicket in thirty-six.
+   */
+  if (!COMP_META[r.comp]) continue
   const c = CAREER.get(r.id) ?? {
     matches: 0, balls: 0, runs: 0, outs: 0, bowlBalls: 0, bowlRuns: 0, wickets: 0,
     midOvers: 0, keeperDismissals: 0, posSum: 0, posCount: 0, seasons: 0,
@@ -458,7 +466,18 @@ for (const [id, c] of CAREER) {
   const said = STATED_ROLE[id]?.role
   if (said) saidRole++
   else readRole++
-  PRIMARY_ROLE.set(id, said ?? roleOf(c, id))
+  let primary = said ?? roleOf(c, id)
+  /*
+   * A keeper who bowls two overs a match across an entire career is not a
+   * keeper, whatever anybody calls him. This catches both halves: Marillier's
+   * article says wicket-keeper and he bowled five overs a match, and
+   * Lokuhettige was read as one off a handful of dismissals while bowling
+   * seam. Standing back once or twice is not the job.
+   */
+  if (primary === 'WK' && c.bowlBalls > c.matches * 12) {
+    primary = roleOf({ ...c, keeperDismissals: 0 }, id)
+  }
+  PRIMARY_ROLE.set(id, primary)
 }
 
 
@@ -664,6 +683,8 @@ for (const r of rows) {
     const bowls = primary === 'PACE' || primary === 'SPIN' || primary === 'AR'
     const contradicts =
       (bowls && r.stats.bowlBalls === 0) ||
+      // An all-rounder who barely turned his arm over that season is not one.
+      (primary === 'AR' && r.stats.bowlBalls < r.stats.matches * 6) ||
       (primary === 'WK' && r.stats.bowlBalls > r.stats.matches * 24)
     if (primary && primary !== role && !contradicts) {
       role = primary
