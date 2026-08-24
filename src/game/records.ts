@@ -48,6 +48,14 @@ export function seasonRecords(matches: MatchResult[]): Record_[] {
   let bestFigures: { line: BowlLine; against: string } | null = null
   let bestStrike: { line: BatLine; against: string } | null = null
   let bestEconomy: { line: BowlLine; against: string } | null = null
+  /*
+   * Bowling average is runs conceded per wicket, and it only means anything
+   * over a season — a man who takes one wicket in his only over has an average
+   * of four and has proved nothing. So this one is totalled across the summer
+   * rather than read off a single card, which is also what makes it a
+   * different statistic from the economy rate beside it.
+   */
+  const season = new Map<string, { runs: number; wickets: number }>()
   let biggestHit: { who: string; metres: number; against: string } | null = null
   let quickest: { who: string; kph: number; against: string } | null = null
 
@@ -71,6 +79,10 @@ export function seasonRecords(matches: MatchResult[]): Record_[] {
         }
       }
       for (const line of inn.bowling) {
+        const at = season.get(line.name) ?? { runs: 0, wickets: 0 }
+        at.runs += line.runs
+        at.wickets += line.wickets
+        season.set(line.name, at)
         const better =
           !bestFigures ||
           line.wickets > bestFigures.line.wickets ||
@@ -113,6 +125,19 @@ export function seasonRecords(matches: MatchResult[]): Record_[] {
       figure: (bestEconomy.line.runs / Math.max(1, ballsOf(bestEconomy.line.overs) / 6)).toFixed(2),
       detail: `${bestEconomy.line.overs}-${bestEconomy.line.runs} · v ${bestEconomy.against}`,
     })
+  // Five wickets before an average is worth printing.
+  const averages = [...season.entries()]
+    .filter(([, v]) => v.wickets >= 5)
+    .map(([who, v]) => ({ who, avg: v.runs / v.wickets, ...v }))
+    .sort((a, b) => a.avg - b.avg)
+  if (averages[0])
+    out.push({
+      label: 'best average',
+      who: averages[0].who,
+      figure: averages[0].avg.toFixed(1),
+      detail: `${averages[0].wickets} wickets at ${averages[0].runs} runs`,
+    })
+
   if (biggestHit)
     out.push({
       label: 'biggest hit',
