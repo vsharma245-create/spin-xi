@@ -20,7 +20,7 @@ import {
 import { playSeason } from '../src/game/sim'
 import { DIFFICULTY, FORMAT_ORDER, PRESETS } from '../src/game/types'
 import { OVERSEAS_LIMIT } from '../src/data/nations'
-import type { Difficulty, DraftConfig, Format, RatingMode } from '../src/game/types'
+import type { Difficulty, DraftConfig, RatingMode } from '../src/game/types'
 
 const db = new PGlite()
 await db.exec(await readFile('supabase/schema.sql', 'utf8'))
@@ -112,7 +112,7 @@ for (const format of FORMAT_ORDER) {
     const rng = makeRng(7)
     const order = [...pool].sort(() => rng() - 0.5)
     outer: for (const squad of order) {
-      for (const p of [...squad.players].sort((a, b) => b.ovr - a.ovr)) {
+      for (const p of [...squad.players].sort((x, y) => y.ovr - x.ovr)) {
         const open = openSlotsFor(p, slots, rules)
         if (!open.length) continue
         slots = place(slots, p, open[0])
@@ -134,7 +134,7 @@ for (const format of FORMAT_ORDER) {
   const rng = makeRng(3)
   outer: for (const squad of [...pool].sort(() => rng() - 0.5)) {
     // Deliberately import-first, to push against the cap rather than avoid it.
-    for (const p of [...squad.players].sort((a, b) => (a.nation === 'IN' ? 1 : -1))) {
+    for (const p of [...squad.players].sort((a) => (a.nation === 'IN' ? 1 : -1))) {
       const open = openSlotsFor(p, slots, rules)
       if (!open.length) continue
       slots = place(slots, p, open[0])
@@ -157,7 +157,7 @@ for (const difficulty of ['EASY', 'NORMAL', 'HARD'] as Difficulty[]) {
     let slots = buildSlots(config.presetId)
     const rules = rulesFor(config)
     outer: for (const squad of pool) {
-      for (const p of [...squad.players].sort((a, b) => b.ovr - a.ovr)) {
+      for (const p of [...squad.players].sort((x, y) => y.ovr - x.ovr)) {
         const open = openSlotsFor(p, slots, rules)
         if (!open.length) continue
         slots = place(slots, p, open[0])
@@ -180,7 +180,7 @@ for (const difficulty of ['EASY', 'NORMAL', 'HARD'] as Difficulty[]) {
     let slots = buildSlots(config.presetId)
     const rules = rulesFor(config)
     outer: for (const squad of poolFor(config)) {
-      for (const p of [...squad.players].sort((a, b) => b.ovr - a.ovr)) {
+      for (const p of [...squad.players].sort((x, y) => y.ovr - x.ovr)) {
         const open = openSlotsFor(p, slots, rules)
         if (!open.length) continue
         slots = place(slots, p, open[0])

@@ -13,6 +13,7 @@ import {
   canPlace,
   drawFromSequence,
   drawSquad,
+  feasibility,
   isComplete,
   makeRng,
   openSlotsFor,
@@ -63,6 +64,11 @@ export default function DraftBoard({
   const preset = presetById(state.config.presetId)
   const pool = useMemo(() => poolFor(state.config), [state.config])
   const rules = useMemo(() => rulesFor(state.config), [state.config])
+  /*
+   * Read once per pick and handed to every placement question asked below, so
+   * a slot that would leave the eleventh place unfillable is never offered.
+   */
+  const feas = useMemo(() => feasibility(pool, state.slots), [pool, state.slots])
   const filled = state.slots.filter((s) => s.player).length
   const daily = state.mode === 'daily' ? todaysChallenge() : null
 
@@ -74,19 +80,19 @@ export default function DraftBoard({
     let cursor = state.dailyCursor
 
     if (state.mode === 'daily' && daily) {
-      const drawn = drawFromSequence(daily.sequence, cursor, state.slots, pool, rules)
+      const drawn = drawFromSequence(daily.sequence, cursor, state.slots, pool, rules, feas)
       squad = drawn.squad
       cursor = drawn.cursor
     } else {
-      squad = drawSquad(pool, state.slots, makeRng(Date.now() + seed * 31), state.recent, rules)
+      squad = drawSquad(pool, state.slots, makeRng(Date.now() + seed * 31), state.recent, rules, feas)
     }
 
     setTarget(squad)
     setSeed((s) => s + 1)
     setPhase('spinning')
-    setFreeReroll(!squadHasPlaceable(squad, state.slots, rules))
+    setFreeReroll(!squadHasPlaceable(squad, state.slots, rules, feas))
     setState({ ...state, currentSquad: squad, dailyCursor: cursor })
-  }, [phase, state, pool, rules, daily, seed, setState])
+  }, [phase, state, pool, rules, feas, daily, seed, setState])
 
   /** Re-draw. Free when the drawn squad can't advance the draft. */
   const reroll = () => {
@@ -101,16 +107,16 @@ export default function DraftBoard({
       let squad: Squad
       let cursor = nextState.dailyCursor
       if (nextState.mode === 'daily' && daily) {
-        const drawn = drawFromSequence(daily.sequence, cursor, nextState.slots, pool, rules)
+        const drawn = drawFromSequence(daily.sequence, cursor, nextState.slots, pool, rules, feas)
         squad = drawn.squad
         cursor = drawn.cursor
       } else {
-        squad = drawSquad(pool, nextState.slots, makeRng(Date.now() + seed * 97), nextState.recent, rules)
+        squad = drawSquad(pool, nextState.slots, makeRng(Date.now() + seed * 97), nextState.recent, rules, feas)
       }
       setTarget(squad)
       setSeed((s) => s + 1)
       setPhase('spinning')
-      setFreeReroll(!squadHasPlaceable(squad, nextState.slots, rules))
+      setFreeReroll(!squadHasPlaceable(squad, nextState.slots, rules, feas))
       setState({ ...nextState, currentSquad: squad, dailyCursor: cursor })
     })
   }
@@ -135,7 +141,7 @@ export default function DraftBoard({
   }
 
   const choose = (player: PlayerSeason) => {
-    const open = openSlotsFor(player, state.slots, rules)
+    const open = openSlotsFor(player, state.slots, rules, feas)
     if (open.length === 0) return
     // One option → draft immediately. Several → let them choose the position.
     if (open.length === 1) commit(player, open[0])
@@ -326,12 +332,12 @@ export default function DraftBoard({
                           // Players you can actually pick come first, best first —
                           // the choice that matters should never be buried.
                           const open =
-                            Number(canPlace(b, state.slots, rules)) -
-                            Number(canPlace(a, state.slots, rules))
+                            Number(canPlace(b, state.slots, rules, feas)) -
+                            Number(canPlace(a, state.slots, rules, feas))
                           return open || b.ovr - a.ovr
                         })
                         .map((p, i) => {
-                        const open = openSlotsFor(p, state.slots, rules)
+                        const open = openSlotsFor(p, state.slots, rules, feas)
                         return (
                           <motion.div
                             key={p.id}

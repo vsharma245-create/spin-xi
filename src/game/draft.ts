@@ -48,8 +48,80 @@ export interface Rules {
 export const overseasCount = (slots: Slot[]) =>
   slots.filter((s) => s.player && s.player.nation !== HOME_NATION).length
 
+/* ── Never stranding the draft ───────────────────────────────────────────── */
+
+/*
+ * A draft can be lost before it is over. Spend the club's only all-rounder on
+ * a batting slot they also cover and the eleventh place has nobody left to
+ * fill it — every squad in the pool comes up dead, the re-rolls are free and
+ * endless, and the side can never be finished. On a whole-archive draw there
+ * are thousands of candidates and this never bites; on one club's fifteen
+ * seasons it bites by simply taking the best card offered each time.
+ *
+ * So a slot that would strand the XI is not offered. Whether the rest can
+ * still be filled is Hall's condition: for every set of roles, the players
+ * covering any of them must number at least the slots that need them. Five
+ * roles is thirty-one sets, and players are bucketed by the roles they cover
+ * rather than counted one by one, so the whole test is a few hundred integer
+ * operations and can run on every candidate pick.
+ *
+ * Paired with canFillPreset — which asks the same question of the empty side —
+ * this makes the promise whole: if the setup screen offers a combination, the
+ * draft can always be finished from it.
+ */
+
+const ROLE_BIT: Record<Role, number> = { BAT: 1, WK: 2, AR: 4, PACE: 8, SPIN: 16 }
+const MASKS = 1 << 5
+
+const maskOf = (roles: Role[]) => roles.reduce((m, r) => m | ROLE_BIT[r], 0)
+
+export interface Feasibility {
+  /** How many still-available players cover exactly this set of roles. */
+  counts: number[]
+  /** Every role a player has filled in this pool, by name. */
+  maskFor: Map<string, number>
+}
+
+/**
+ * Reads the pool once, for the board to reuse across every candidate pick.
+ *
+ * A player is one entry under the union of the roles they have filled, because
+ * the draft takes a version and not a player: an all-rounder in 2016 who
+ * became a specialist batter can still be drafted as the 2016 card.
+ */
+export function feasibility(pool: Squad[], slots: Slot[]): Feasibility {
+  const taken = new Set(slots.map((s) => s.player?.name).filter(Boolean))
+  const maskFor = new Map<string, number>()
+  for (const squad of pool) {
+    for (const p of squad.players) {
+      maskFor.set(p.name, (maskFor.get(p.name) ?? 0) | maskOf(rolesOf(p)))
+    }
+  }
+  const counts = new Array<number>(MASKS).fill(0)
+  for (const [name, mask] of maskFor) if (!taken.has(name)) counts[mask]++
+  return { counts, maskFor }
+}
+
+/** Hall's condition: can these open slots still be filled from what is left? */
+function fillable(openRoles: Role[], counts: number[]): boolean {
+  for (let set = 1; set < MASKS; set++) {
+    let need = 0
+    for (const role of openRoles) if (set & ROLE_BIT[role]) need++
+    if (!need) continue
+    let have = 0
+    for (let mask = 1; mask < MASKS; mask++) if (mask & set) have += counts[mask]
+    if (have < need) return false
+  }
+  return true
+}
+
 /** Slot indices this player could legally occupy right now. */
-export function openSlotsFor(player: PlayerSeason, slots: Slot[], rules: Rules = {}): number[] {
+export function openSlotsFor(
+  player: PlayerSeason,
+  slots: Slot[],
+  rules: Rules = {},
+  feas?: Feasibility,
+): number[] {
   // One version of a player only — you can't field 2016 Kohli next to 2023 Kohli.
   if (slots.some((s) => s.player?.name === player.name)) return []
   // Franchise cricket limits how many overseas players take the field.
@@ -61,17 +133,34 @@ export function openSlotsFor(player: PlayerSeason, slots: Slot[], rules: Rules =
     return []
   }
   const can = rolesOf(player)
-  return slots.reduce<number[]>((acc, s, i) => {
+  const open = slots.reduce<number[]>((acc, s, i) => {
     if (!s.player && can.includes(s.role)) acc.push(i)
     return acc
   }, [])
+  if (!feas) return open
+
+  // Taking this player removes them from everything still to be filled.
+  const counts = feas.counts.slice()
+  const mine = feas.maskFor.get(player.name)
+  if (mine !== undefined && counts[mine] > 0) counts[mine]--
+
+  const openRoles = slots.filter((s) => !s.player).map((s) => s.role)
+  return open.filter((i) => {
+    const rest = [...openRoles]
+    rest.splice(rest.indexOf(slots[i].role), 1)
+    return fillable(rest, counts)
+  })
 }
 
-export const canPlace = (p: PlayerSeason, slots: Slot[], rules: Rules = {}) =>
-  openSlotsFor(p, slots, rules).length > 0
+export const canPlace = (p: PlayerSeason, slots: Slot[], rules: Rules = {}, feas?: Feasibility) =>
+  openSlotsFor(p, slots, rules, feas).length > 0
 
-export const squadHasPlaceable = (squad: Squad, slots: Slot[], rules: Rules = {}) =>
-  squad.players.some((p) => canPlace(p, slots, rules))
+export const squadHasPlaceable = (
+  squad: Squad,
+  slots: Slot[],
+  rules: Rules = {},
+  feas?: Feasibility,
+) => squad.players.some((p) => canPlace(p, slots, rules, feas))
 
 /**
  * The overseas cap belongs to the Indian league alone, and only when the
@@ -141,15 +230,26 @@ export function poolFor(config: DraftConfig): Squad[] {
 export function canFillPreset(pool: Squad[], presetId: string): boolean {
   const slotRoles = presetById(presetId).slots
 
-  // Unique players by name — the strongest version of each.
-  const byName = new Map<string, PlayerSeason>()
+  /*
+   * Unique players by name, and every role they have filled in this pool.
+   *
+   * The union across their seasons rather than the roles on their best card,
+   * because a draft picks a version and not a player: someone who was an
+   * all-rounder in 2016 and a specialist batter by 2023 can still be taken as
+   * the 2016 card. Reading only the strongest year hid whole clubs — Perth
+   * Scorchers field five all-rounders across their fifteen seasons and exactly
+   * one of them tops their own card, so a balanced XI was greyed out for a
+   * club that can comfortably fill it.
+   */
+  const rolesByName = new Map<string, Set<Role>>()
   for (const s of pool) {
     for (const p of s.players) {
-      const prev = byName.get(p.name)
-      if (!prev || p.ovr > prev.ovr) byName.set(p.name, p)
+      const seen = rolesByName.get(p.name) ?? new Set<Role>()
+      for (const r of rolesOf(p)) seen.add(r)
+      rolesByName.set(p.name, seen)
     }
   }
-  const players = [...byName.values()]
+  const players = [...rolesByName.values()]
   if (players.length < XI_SIZE) return false
 
   // slotIndex -> playerIndex
@@ -159,7 +259,7 @@ export function canFillPreset(pool: Squad[], presetId: string): boolean {
   const tryAssign = (slotIdx: number, seen: boolean[]): boolean => {
     for (let pi = 0; pi < players.length; pi++) {
       if (seen[pi]) continue
-      if (!rolesOf(players[pi]).includes(slotRoles[slotIdx])) continue
+      if (!players[pi].has(slotRoles[slotIdx])) continue
       seen[pi] = true
       if (matchOfPlayer[pi] === -1 || tryAssign(matchOfPlayer[pi], seen)) {
         matchOfPlayer[pi] = slotIdx
@@ -186,8 +286,9 @@ export function drawSquad(
   rng: () => number,
   recent: string[] = [],
   rules: Rules = {},
+  feas?: Feasibility,
 ): Squad {
-  const usable = pool.filter((s) => squadHasPlaceable(s, slots, rules))
+  const usable = pool.filter((s) => squadHasPlaceable(s, slots, rules, feas))
   const base = usable.length ? usable : pool
   const fresh = base.filter((s) => !recent.includes(s.id))
   const from = fresh.length ? fresh : base
@@ -204,6 +305,7 @@ export function drawFromSequence(
   slots: Slot[],
   pool: Squad[],
   rules: Rules = {},
+  feas?: Feasibility,
 ): { squad: Squad; cursor: number } {
   // A sequence entry only counts if the squad actually plays this tournament.
   // Looked up in the pool so the daily inherits the chosen rating mode.
@@ -211,10 +313,10 @@ export function drawFromSequence(
   for (let i = cursor; i < sequence.length; i++) {
     const squad = eligible.get(sequence[i])
     if (!squad) continue
-    if (squadHasPlaceable(squad, slots, rules)) return { squad, cursor: i + 1 }
+    if (squadHasPlaceable(squad, slots, rules, feas)) return { squad, cursor: i + 1 }
   }
   // Sequence exhausted — deterministic fallback keyed off progress so far.
-  const squad = drawSquad(pool, slots, makeRng(sequence.length * 977 + filledCount(slots)), [], rules)
+  const squad = drawSquad(pool, slots, makeRng(sequence.length * 977 + filledCount(slots)), [], rules, feas)
   return { squad, cursor: sequence.length }
 }
 
