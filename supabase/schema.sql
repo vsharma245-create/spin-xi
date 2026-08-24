@@ -33,6 +33,7 @@ drop view if exists squad_index;
 drop view if exists roster_feed;
 drop table if exists squad_players cascade;
 drop table if exists squads        cascade;
+drop table if exists partnerships  cascade;
 drop table if exists players       cascade;
 drop table if exists teams         cascade;
 drop table if exists challenges    cascade;
@@ -89,6 +90,27 @@ create table players (
   runs     integer  not null,
   wickets  integer  not null
 );
+
+/*
+ * Two players who have actually batted together, and for how long.
+ *
+ * Not a table of who got on with whom — that would be an opinion typed into
+ * the data. Every delivery in the archive names the striker and the man at the
+ * other end, so this is only what happened: how many balls two players have
+ * spent at opposite ends, and how many runs came while they were there. The
+ * difference between "once teammates" and "an opening pair who know each
+ * other's running" is the number in this table.
+ */
+create table partnerships (
+  player_a text not null references players (id) on delete cascade,
+  player_b text not null references players (id) on delete cascade,
+  balls    integer not null check (balls > 0),
+  runs     integer not null check (runs >= 0),
+  primary key (player_a, player_b)
+);
+
+create index partnerships_a_idx on partnerships (player_a);
+create index partnerships_b_idx on partnerships (player_b);
 
 create index players_primary_role_idx on players (primary_role);
 create index players_team_type_idx    on players (team_type);

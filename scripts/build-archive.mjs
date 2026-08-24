@@ -890,6 +890,31 @@ function cardStats(r, role = r.role) {
   console.log(`  primary role: ${saidRole} stated in their own article, ${readRole} read from their career`)
 }
 
+/*
+ * Batting partnerships, joined to the players that survived the build.
+ *
+ * The pairs come from the ball-by-ball pass, keyed by Cricsheet identifiers;
+ * the archive emits players under its own ids, so they are mapped across and
+ * anything pointing at a player who did not make the cut is dropped.
+ */
+const partnerships = []
+{
+  let raw = []
+  try {
+    raw = JSON.parse(await readFile(join(ROOT, '.cricsheet/partnerships.json'), 'utf8'))
+  } catch {
+    console.log('  no partnerships recorded — run npm run ingest to collect them')
+  }
+  for (const p of raw) {
+    const a = emittedFrom.get(p.a)
+    const b = emittedFrom.get(p.b)
+    if (!a || !b || a === b || !players.has(a) || !players.has(b)) continue
+    const [x, y] = a < b ? [a, b] : [b, a]
+    partnerships.push([x, y, p.balls, p.runs])
+  }
+  if (partnerships.length) console.log(`  ${partnerships.length} batting partnerships kept`)
+}
+
 /* ── Emit ──────────────────────────────────────────────────────────────── */
 
 const q = (v) => (v === null || v === undefined ? 'null' : `'${String(v).replace(/'/g, "''")}'`)
@@ -949,6 +974,8 @@ ${insert(
     n(p.seasons), n(p.matches), n(p.runs), n(p.wickets),
   ]),
 )}
+
+${insert('partnerships', ['player_a', 'player_b', 'balls', 'runs'], partnerships.map((p) => [q(p[0]), q(p[1]), n(p[2]), n(p[3])]))}
 
 ${insert('squads', ['id', 'team_key', 'team_name', 'team_short', 'season', 'competition', 'formats'], [...squads.values()].map((s) => [q(s.id), q(s.key), q(s.name), q(s.short), q(s.season), q(s.comp), arr(s.formats)]))}
 

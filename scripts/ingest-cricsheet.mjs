@@ -88,7 +88,16 @@ const blank = () => ({
 const SEP = '|~|'
 const key = (player, team, season, comp) => `${player}|~|${team}|~|${season}|~|${comp}`
 
-async function collect(compKey, agg, teamSeasons) {
+/**
+ * Who has actually batted with whom, and for how long.
+ *
+ * Every delivery names the striker and the man at the other end, so a real
+ * partnership record falls out of the same pass that counts the runs: not
+ * "these two were in the same squad" but "these two have spent four thousand
+ * deliveries at opposite ends". That is the difference between two players who
+ * were once teammates and an opening pair who know each other's running.
+ */
+async function collect(compKey, agg, teamSeasons, pairs) {
   const dir = await ensure(compKey)
   const files = (await readdir(dir)).filter((f) => f.endsWith('.json') && f !== 'README.txt')
   let used = 0
@@ -162,6 +171,18 @@ async function collect(compKey, agg, teamSeasons) {
           }
           for (const nm of [ball.batter, ball.non_striker]) {
             if (!order.has(nm)) order.set(nm, order.size + 1)
+          }
+
+          if (ball.batter && ball.non_striker) {
+            const x = ident(ball.batter)
+            const y = ident(ball.non_striker)
+            if (x && y && x !== y) {
+              const pk = x < y ? `${x}|${y}` : `${y}|${x}`
+              const at = pairs.get(pk) ?? { balls: 0, runs: 0 }
+              if (!('wides' in extras)) at.balls++
+              at.runs += ball.runs.total
+              pairs.set(pk, at)
+            }
           }
 
           const bowl = get(ball.bowler)
@@ -327,13 +348,14 @@ console.log(`\ningesting ${keys.length} competition${keys.length === 1 ? '' : 's
 
 const agg = new Map()
 const teamSeasons = new Map()
+const pairs = new Map()
 let matches = 0
 for (const k of keys) {
   if (!COMPS[k]) {
     console.log(`  ${k}: unknown competition, skipping`)
     continue
   }
-  const n = await collect(k, agg, teamSeasons)
+  const n = await collect(k, agg, teamSeasons, pairs)
   matches += n
   console.log(`  ${k}: ${n} matches`)
 }
@@ -402,6 +424,25 @@ await writeFile(
       return { id, player: v.stats.name ?? id, team, season, comp, ...v }
     }),
   ),
+)
+
+/*
+ * Only pairs with a real history. Two players who shared a handful of
+ * deliveries were teammates for an afternoon; the ones worth naming have spent
+ * whole seasons at opposite ends.
+ */
+const MIN_TOGETHER = 240
+const kept = [...pairs]
+  .filter(([, v]) => v.balls >= MIN_TOGETHER)
+  .sort((a, b) => b[1].balls - a[1].balls)
+  .map(([k, v]) => {
+    const [a, b] = k.split('|')
+    return { a, b, balls: v.balls, runs: v.runs }
+  })
+await writeFile(join(CACHE, 'partnerships.json'), JSON.stringify(kept))
+console.log(
+  `\n${pairs.size} batting pairs seen; ${kept.length} have faced ${MIN_TOGETHER}+ balls together` +
+    ` → .cricsheet/partnerships.json`,
 )
 
 console.log(`\nwrote ${ratings.size} rated player-seasons to .cricsheet/aggregate.json`)

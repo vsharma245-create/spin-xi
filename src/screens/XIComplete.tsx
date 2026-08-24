@@ -5,7 +5,7 @@ import { Field } from '../components/Field'
 import { TeamSheetList } from '../components/TeamSheet'
 import { Button, Pill, SectionLabel, StatCard } from '../components/ui'
 import { overseasCount, reorderXI, suggestCaptain, teamRatings, xiOf } from '../game/draft'
-import { chemistryOf } from '../game/chemistry'
+import { chemistryOf, partnershipNote } from '../game/chemistry'
 import { pitchSuitability } from '../game/sim'
 import { OVERSEAS_LIMIT } from '../data/nations'
 import { PITCH, TOURNAMENTS } from '../game/types'
@@ -74,13 +74,13 @@ export default function XIComplete({
                   {p.a.surname} &amp; {p.b.surname}
                 </span>
                 <span className="tnum shrink-0 text-[10.5px] text-moss">
-                  {p.seasons} seasons together
+                  {partnershipNote(p)}
                 </span>
               </div>
             ))}
           </div>
           <p className="mt-2 text-[10px] leading-snug text-moss">
-            Players who have spent seasons in the same side. Worth a little in a close match.
+            Balls these players have actually spent batting together. Worth a little in a close match.
           </p>
         </div>
       )}

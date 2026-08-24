@@ -2,6 +2,8 @@ import { hydrate } from './squads'
 import { ROSTER_COLUMNS } from './squads'
 import type { RosterRow } from './squads'
 import { hydrateChallenges } from './challenges'
+import { hydratePartnerships } from '../game/chemistry'
+import type { PartnershipRow } from '../game/chemistry'
 import type { ChallengeRow } from './challenges'
 
 /**
@@ -54,6 +56,7 @@ interface Cached {
   version: string
   rows: RosterRow[]
   challenges: ChallengeRow[]
+  partnerships?: PartnershipRow[]
 }
 
 /** Minimal IndexedDB access. The payload is a megabyte or so — too big for
@@ -109,6 +112,36 @@ async function fetchAllRows(): Promise<RosterRow[]> {
     Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => page((i + 1) * PAGE)),
   )
   return [first.data, ...rest.map((r) => r.data)].flat()
+}
+
+/**
+ * Who has batted with whom, and for how long.
+ *
+ * Under four thousand rows, so a handful of pages rather than the forty the
+ * roster needs. Cached alongside everything else, because a partnership does
+ * not change until the archive does.
+ */
+const pairPage = (from: number) =>
+  rest<PartnershipRow[]>('partnerships?select=player_a,player_b,balls,runs&order=player_a.asc,player_b.asc', {
+    Range: `${from}-${from + PAGE - 1}`,
+    'Range-Unit': 'items',
+    Prefer: 'count=exact',
+  })
+
+async function fetchPartnerships(): Promise<PartnershipRow[]> {
+  try {
+    const first = await pairPage(0)
+    const total = Number(first.range?.split('/')[1]) || first.data.length
+    if (total <= PAGE) return first.data
+    const rest_ = await Promise.all(
+      Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => pairPage((i + 1) * PAGE)),
+    )
+    return [first.data, ...rest_.map((r) => r.data)].flat()
+  } catch {
+    // A database that has not been pushed yet still plays; the side simply has
+    // no partnerships to show.
+    return []
+  }
 }
 
 async function fetchVersion(): Promise<string> {
@@ -169,6 +202,7 @@ async function load(): Promise<LoadResult> {
   const serve = (c: Cached): LoadResult => {
     hydrate(c.rows)
     hydrateChallenges(c.challenges)
+    hydratePartnerships(c.partnerships ?? [])
     loadedVersion = c.version
     return { source: 'cache', ...counts(c.rows) }
   }
@@ -187,18 +221,20 @@ async function load(): Promise<LoadResult> {
     }
   }
 
-  const [fetchedVersion, rows, challenges] = await Promise.all([
+  const [fetchedVersion, rows, challenges, partnerships] = await Promise.all([
     version! ? Promise.resolve(version!) : fetchVersion(),
     fetchAllRows(),
     fetchChallenges(),
+    fetchPartnerships(),
   ])
   version = fetchedVersion
   if (!rows.length) throw new Error('The archive is empty — has the seed been run?')
 
   hydrate(rows)
   hydrateChallenges(challenges)
+  hydratePartnerships(partnerships)
   loadedVersion = version
-  void writeCache({ version, rows, challenges })
+  void writeCache({ version, rows, challenges, partnerships })
   return { source: 'network', ...counts(rows) }
 }
 
