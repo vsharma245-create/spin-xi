@@ -59,31 +59,41 @@ export default function XIComplete({
       </div>
 
       {/* ── How well they know each other ── */}
-      {chemistry.pairs.length > 0 && (
-        <div className="surface mt-3 px-3.5 py-3">
-          <div className="flex items-baseline justify-between">
-            <span className="label">understanding</span>
-            <span className="tnum text-[19px] font-bold leading-none text-pitch">
-              {chemistry.score}
-            </span>
-          </div>
-          <div className="mt-2 space-y-1">
-            {chemistry.pairs.map((p) => (
-              <div key={`${p.a.id}-${p.b.id}`} className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-[11.5px] font-semibold text-cream">
-                  {p.a.surname} &amp; {p.b.surname}
-                </span>
-                <span className="tnum shrink-0 text-[10.5px] text-moss">
-                  {partnershipNote(p)}
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="mt-2 text-[10px] leading-snug text-moss">
-            Balls these players have actually spent batting together. Worth a little in a close match.
-          </p>
+      <div className="surface mt-3 px-3.5 py-3">
+        <div className="flex items-baseline justify-between">
+          <span className="label">understanding</span>
+          <span className="tnum text-[19px] font-bold leading-none text-pitch">
+            {chemistry.score}
+          </span>
         </div>
-      )}
+        {chemistry.pairs.length > 0 ? (
+          <>
+            <div className="mt-2 space-y-1">
+              {chemistry.pairs.map((p) => (
+                <div key={`${p.a.id}-${p.b.id}`} className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-[11.5px] font-semibold text-cream">
+                    {p.a.surname} &amp; {p.b.surname}
+                  </span>
+                  <span className="tnum shrink-0 text-[10.5px] text-moss">
+                    {partnershipNote(p)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] leading-snug text-moss">
+              Balls these players have actually spent batting together. Worth a little in a close match.
+            </p>
+          </>
+        ) : (
+          /* Said out loud rather than hidden. An XI of eleven strangers is a
+             real thing to know about your side, and leaving the panel out when
+             it is empty meant most players never learned the mechanic existed. */
+          <p className="mt-2 text-[10.5px] leading-snug text-moss">
+            Nobody in this XI has batted with anybody else in it. Draft from one club, or one
+            country&apos;s great side, and established pairs are worth a little in a close match.
+          </p>
+        )}
+      </div>
 
       {/* ── Field ── */}
       <div className="mt-4">

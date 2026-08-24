@@ -427,11 +427,15 @@ await writeFile(
 )
 
 /*
- * Only pairs with a real history. Two players who shared a handful of
- * deliveries were teammates for an afternoon; the ones worth naming have spent
- * whole seasons at opposite ends.
+ * Only pairs with a real history — but the bar is fifteen overs, not forty.
+ *
+ * At forty overs the record was true and almost never seen: a side drafted
+ * from every country and era has nobody in it who has batted with anybody, so
+ * the feature simply never appeared. Fifteen overs together is still a real
+ * partnership rather than a coincidence, and it is common enough that a side
+ * with any shared history shows it.
  */
-const MIN_TOGETHER = 240
+const MIN_TOGETHER = 90
 const kept = [...pairs]
   .filter(([, v]) => v.balls >= MIN_TOGETHER)
   .sort((a, b) => b[1].balls - a[1].balls)
