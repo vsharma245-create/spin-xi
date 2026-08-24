@@ -207,6 +207,32 @@ export function moveSlot(slots: Slot[], from: number, to: number): Slot[] {
   )
 }
 
+/**
+ * Reorder the finished XI.
+ *
+ * Different from moveSlot, and deliberately unrestricted. During the draft a
+ * position carries a requirement — the eighth place wants a spinner — so
+ * moving somebody into it means checking they can fill it. Once eleven names
+ * are down there is no requirement left to protect: the side is picked, and
+ * what is being arranged is the batting order.
+ *
+ * The whole position moves rather than the player, so a fast bowler sent in to
+ * open is still a fast bowler, and the shape of the side is untouched — only
+ * the order in which they bat. Which is the point: a player who wants their
+ * hitter up the order should be able to send them there, whatever the game
+ * decided to call them.
+ *
+ * The numbering belongs to the position and stays where it is; everything else
+ * travels with the player.
+ */
+export function reorderXI(slots: Slot[], from: number, to: number): Slot[] {
+  if (from === to || !slots[from] || !slots[to]) return slots
+  const moved = [...slots]
+  const [taken] = moved.splice(from, 1)
+  moved.splice(to, 0, taken)
+  return moved.map((s, i) => ({ ...s, no: i + 1 }))
+}
+
 /** Whether these two positions can trade places right now. */
 export function canSwap(slots: Slot[], from: number, to: number): boolean {
   return moveSlot(slots, from, to) !== slots

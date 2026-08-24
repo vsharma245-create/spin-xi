@@ -56,8 +56,6 @@ for (const s of seasons) {
 }
 const BAT_EASE = new Map()
 const BOWL_EASE = new Map()
-let BAT_BETA = 0
-let BOWL_BETA = 0
 for (const [, entries] of byFamily) {
   const batable = entries.filter((s) => s.stats.balls >= 10)
   const bowlable = entries.filter((s) => s.stats.bowlBalls >= 30)
@@ -72,10 +70,6 @@ for (const [, entries] of byFamily) {
   const w = competitionEase(bowlable, (s) => bowlingImpact(s.stats, flat, 1))
   for (const [c, e] of b.ease) BAT_EASE.set(c, e)
   for (const [c, e] of w.ease) BOWL_EASE.set(c, e)
-  // Test and one-day cricket have no domestic peer, so their fit says nothing
-  // about opposition; the T20 family, which spans associates and full members
-  // alike, is what actually measures it.
-  if (b.ease.size > 2) { BAT_BETA = b.beta; BOWL_BETA = w.beta }
 }
 
 const byFormat = new Map()

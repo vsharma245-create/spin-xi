@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Field } from '../components/Field'
 import { TeamSheetList } from '../components/TeamSheet'
 import { Button, Pill, SectionLabel, StatCard } from '../components/ui'
-import { moveSlot, overseasCount, suggestCaptain, teamRatings } from '../game/draft'
+import { overseasCount, reorderXI, suggestCaptain, teamRatings } from '../game/draft'
 import { pitchSuitability } from '../game/sim'
 import { OVERSEAS_LIMIT } from '../data/nations'
 import { PITCH, TOURNAMENTS } from '../game/types'
@@ -36,7 +36,7 @@ export default function XIComplete({
       setMovingFrom(movingFrom === from ? null : from)
       return
     }
-    setState({ ...state, slots: moveSlot(state.slots, from, to) })
+    setState({ ...state, slots: reorderXI(state.slots, from, to) })
     setMovingFrom(null)
   }
 
@@ -113,7 +113,7 @@ export default function XIComplete({
             <span className="label">
               {movingFrom !== null
                 ? 'now tap where they should bat'
-                : 'tap ⇅ to move a player · C to captain'}
+                : 'tap ⇅ to move anyone, anywhere · C to captain'}
             </span>
           }
         >

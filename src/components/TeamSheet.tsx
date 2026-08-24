@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
 import { flagOf } from '../data/nations'
-import { canSwap } from '../game/draft'
 import type { Role, Slot } from '../game/types'
 import { ROLE_STYLE, ovrTier } from './roles'
 
@@ -125,13 +124,14 @@ export function TeamSheetList({
       {slots.map((s, i) => {
         const role = ROLE_STYLE[s.role]
         const p = s.player
-        // Either an empty slot this player covers, or a team-mate who can take
-        // their place — a straight swap of two positions in the order.
+        /*
+         * Any other place in the order. The side is already picked by the time
+         * this list can be moved around, so there is no requirement left to
+         * check against — a batter can be sent in at eleven and a bowler sent
+         * up to open, which is the whole point of being able to arrange it.
+         */
         const canReceive =
-          movingFrom !== null &&
-          movingFrom !== undefined &&
-          movingFrom !== i &&
-          canSwap(slots, movingFrom, i)
+          movingFrom !== null && movingFrom !== undefined && movingFrom !== i
 
         return (
           <div
