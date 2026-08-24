@@ -121,6 +121,31 @@ function surnameOf(name) {
   return upper(parts.slice(first).join(' '))
 }
 
+/**
+ * What the card shows in large type, once the name has been corrected.
+ *
+ * surnameOf reads a scorecard: "SR Harmer" has initials, so the surname is
+ * what follows them. Replacing that with a real name loses the signal — "Simon
+ * Harmer" has no initials to strip, and the same function would return the
+ * whole thing.
+ *
+ * So the scorecard decides where the name divides and the real name supplies
+ * the words. Matched on whole words rather than characters, because "P Simran
+ * Singh" yields "Simran Singh", and "Prabhsimran Singh" does end with those
+ * letters without ending with those words — which would have put SINGH on his
+ * card and lost the name the correction was for.
+ */
+function cardName(scorecard, display) {
+  const tail = surnameOf(scorecard)
+  const whole = upper(display)
+  const tailWords = tail.split(' ')
+  const wholeWords = whole.split(' ')
+  const matches =
+    wholeWords.length > tailWords.length &&
+    wholeWords.slice(-tailWords.length).join(' ') === tail
+  return matches ? tail : whole
+}
+
 /* ── Load ──────────────────────────────────────────────────────────────── */
 
 const rows = JSON.parse(await readFile(join(ROOT, '.cricsheet/aggregate.json'), 'utf8'))
@@ -457,6 +482,32 @@ try {
 } catch {
   console.log('  no data/roles.json — roles fall back to the career reading (npm run roles)')
 }
+/*
+ * A proper name, where the article gives one.
+ *
+ * Cricsheet prints scorecard names: "SR Harmer", "JR Philippe", initials and a
+ * surname. Dropping the initials leaves a bare surname on the card, and worse
+ * where the initial is really the front of a compound given name — Prabhsimran
+ * Singh is recorded as "P Simran Singh", so trimming the initial produced
+ * "Simran Singh", a player who does not exist.
+ *
+ * The Wikipedia article title is the person's actual name, and it is already
+ * on hand from the role lookup. It is only trusted when the last word of both
+ * agrees, so a bad identifier join renames nobody: a wrong article is far more
+ * likely to disagree there than to happen to share a surname.
+ */
+const ARTICLE_NAME = {}
+{
+  const looksLikeAName = (t) => t && !t.includes('(') && t.split(' ').length <= 4
+  const lastWord = (t) => t.trim().split(/\s+/).pop().toLowerCase()
+  for (const [id, v] of Object.entries(STATED_ROLE)) {
+    if (!looksLikeAName(v.article) || !v.name) continue
+    if (lastWord(v.article) !== lastWord(v.name)) continue
+    ARTICLE_NAME[id] = v.article
+  }
+}
+let namedFromArticle = 0
+
 let saidRole = 0
 let readRole = 0
 
@@ -630,12 +681,22 @@ for (const r of rows) {
   emittedFrom.set(r.id, pid)
   if (!sourceIdOf.has(pid)) sourceIdOf.set(pid, r.id)
   if (!players.has(pid)) {
-    const display = wikidataNames[r.id] ?? displayName(r.player)
+    /*
+     * The article title outranks the Wikidata label. Both are better than a
+     * scorecard, but a label can be as clipped as the scorecard was — Wikidata
+     * had Prabhsimran Singh down as "Simran Singh", which is the same missing
+     * syllable the initials caused — while the article title is the name a
+     * person chose for the page. Both still have to end in the same word as
+     * the scorecard name before either is used.
+     */
+    const fromArticle = ARTICLE_NAME[r.id]
+    if (fromArticle) namedFromArticle++
+    const display = fromArticle ?? wikidataNames[r.id] ?? displayName(r.player)
     if (display !== r.player) upgraded++
     players.set(pid, {
       id: pid,
       name: display,
-      surname: surnameOf(r.player),
+      surname: cardName(r.player, display),
       nation: nationOfPlayer.get(r.id) ?? 'IN',
     })
   }
@@ -909,6 +970,7 @@ function cardStats(r, role = r.role) {
   }
   console.log(`  ${players.size} players carry a career record`)
   console.log(`  primary role: ${saidRole} stated in their own article, ${readRole} read from their career`)
+  console.log(`  ${namedFromArticle} players named from their article rather than a scorecard`)
 }
 
 /*
