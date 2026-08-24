@@ -1,4 +1,7 @@
-import { buildSlots, makeRng, openSlotsFor, poolFor, rulesFor, squadHasPlaceable } from './draft'
+import {
+  buildSlots, makeRng, openSlotsFor, poolFor, rulesFor, squadHasPlaceable,
+} from './draft'
+import type { Feasibility } from './draft'
 import { XI_SIZE } from './types'
 import type { DraftConfig, PlayerSeason, Slot, Squad } from './types'
 
@@ -56,13 +59,14 @@ export function squadForPick(
   pickNo: number,
   slots?: Slot[],
   config?: DraftConfig,
+  feas?: Feasibility,
 ): Squad | null {
   if (!order.length) return null
   if (!slots || !config) return order[pickNo % order.length] ?? null
   const rules = rulesFor(config)
   for (let i = 0; i < order.length; i++) {
     const squad = order[(pickNo + i) % order.length]
-    if (squadHasPlaceable(squad, slots, rules)) return squad
+    if (squadHasPlaceable(squad, slots, rules, feas)) return squad
   }
   return null
 }
@@ -102,11 +106,12 @@ export function botPick(
   slots: Slot[],
   taken: Set<string>,
   config: DraftConfig,
+  feas?: Feasibility,
 ): { player: PlayerSeason; slot: number } | null {
   const rules = rulesFor(config)
   const candidates = squad.players
     .filter((p) => !taken.has(p.playerId))
-    .map((p) => ({ p, open: openSlotsFor(p, slots, rules) }))
+    .map((p) => ({ p, open: openSlotsFor(p, slots, rules, feas) }))
     .filter((c) => c.open.length > 0)
   if (!candidates.length) return null
 

@@ -80,6 +80,14 @@ export interface Feasibility {
   counts: number[]
   /** Every role a player has filled in this pool, by name. */
   maskFor: Map<string, number>
+  /**
+   * Players already gone to somebody else's XI, by id.
+   *
+   * Solo drafts never need this — the only side being filled is yours. A live
+   * room does: four seats eat one pool between them, so a squad can look full
+   * of options and hold nothing that is still going.
+   */
+  taken?: Set<string>
 }
 
 /**
@@ -89,17 +97,21 @@ export interface Feasibility {
  * the draft takes a version and not a player: an all-rounder in 2016 who
  * became a specialist batter can still be drafted as the 2016 card.
  */
-export function feasibility(pool: Squad[], slots: Slot[]): Feasibility {
-  const taken = new Set(slots.map((s) => s.player?.name).filter(Boolean))
+export function feasibility(pool: Squad[], slots: Slot[], taken?: Set<string>): Feasibility {
+  const mine = new Set(slots.map((s) => s.player?.name).filter(Boolean))
   const maskFor = new Map<string, number>()
+  const goneNames = new Set<string>()
   for (const squad of pool) {
     for (const p of squad.players) {
       maskFor.set(p.name, (maskFor.get(p.name) ?? 0) | maskOf(rolesOf(p)))
+      if (taken?.has(p.playerId)) goneNames.add(p.name)
     }
   }
   const counts = new Array<number>(MASKS).fill(0)
-  for (const [name, mask] of maskFor) if (!taken.has(name)) counts[mask]++
-  return { counts, maskFor }
+  for (const [name, mask] of maskFor) {
+    if (!mine.has(name) && !goneNames.has(name)) counts[mask]++
+  }
+  return { counts, maskFor, taken }
 }
 
 /** Hall's condition: can these open slots still be filled from what is left? */
@@ -122,6 +134,8 @@ export function openSlotsFor(
   rules: Rules = {},
   feas?: Feasibility,
 ): number[] {
+  // Gone to another seat in a live room, so not going anywhere here.
+  if (feas?.taken?.has(player.playerId)) return []
   // One version of a player only — you can't field 2016 Kohli next to 2023 Kohli.
   if (slots.some((s) => s.player?.name === player.name)) return []
   // Franchise cricket limits how many overseas players take the field.

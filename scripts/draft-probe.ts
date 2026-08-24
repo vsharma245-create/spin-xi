@@ -18,6 +18,11 @@
 import { PGlite } from '@electric-sql/pglite'
 import { readFile } from 'node:fs/promises'
 import { hydrate, rolesOf, seasonYear, yearsForFormat } from '../src/data/squads'
+import { hydrateChallenges, todaysChallenge } from '../src/data/challenges'
+import {
+  botPick, drawOrder, seatSlots, snakeSeat, squadForPick, totalPicks,
+} from '../src/game/live'
+import { playSeason } from '../src/game/sim'
 import {
   buildSlots, canFillPreset, canSwap, drawFromSequence, drawSquad, filledCount, isComplete,
   makeRng, moveSlot,
@@ -30,7 +35,9 @@ import type { DraftConfig, PlayerSeason, RatingMode, Slot, Squad } from '../src/
 const db = new PGlite()
 await db.exec(await readFile('supabase/schema.sql', 'utf8'))
 await db.exec(await readFile('supabase/archive.sql', 'utf8'))
+await db.exec(await readFile('supabase/challenges.sql', 'utf8'))
 hydrate((await db.query('select * from roster_feed')).rows as never[])
+hydrateChallenges((await db.query('select * from challenges where active')).rows as never[])
 
 let bad = 0
 const fails: string[] = []
@@ -424,6 +431,142 @@ function playDraft(config: DraftConfig, seed: number, taste: Taste) {
   const r = playDraft(config, 77, 'BEST')
   check(!r.problems.some((p) => p.includes('re-roll')), 'Hard draws no re-rolls',
     `${DIFFICULTY.HARD.skips} allowed`)
+}
+
+/* ── The daily: a different puzzle every day, and a winnable one ──────── */
+{
+  /*
+   * A daily has two ways to be broken that a screen will not show you. It can
+   * repeat — same sequence two days running, and yesterday's answer still
+   * works. Or it can be unwinnable: the objective on the card is a string the
+   * simulation has never heard of, objectiveMet falls through to its default,
+   * and no season anybody plays will ever satisfy it.
+   */
+  const days = 400
+  const start = new Date(2026, 0, 1)
+  const seen = new Map<string, number>()
+  const challenges = Array.from({ length: days }, (_, i) => {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    return todaysChallenge(d)
+  })
+
+  for (const c of challenges) seen.set(c.sequence.join('|'), (seen.get(c.sequence.join('|')) ?? 0) + 1)
+  const consecutive = challenges.filter((c, i) => i > 0 && c.sequence.join('|') === challenges[i - 1].sequence.join('|')).length
+  check(consecutive === 0, `${days} days running, never the same draw two days together`,
+    `${seen.size} distinct sequences`)
+
+  const numbers = challenges.map((c) => c.number)
+  const steady = numbers.every((n, i) => i === 0 || n === numbers[i - 1] + 1)
+  check(steady, 'the challenge number advances by one a day', `#${numbers[0]} to #${numbers.at(-1)}`)
+
+  // Same day, asked twice: everybody has to be playing the same puzzle.
+  const twice = challenges.every((c) => {
+    const again = todaysChallenge(new Date(c.dateKey + 'T12:00:00'))
+    return again.sequence.join('|') === c.sequence.join('|') && again.presetId === c.presetId
+  })
+  check(twice, 'the same date always gives the same puzzle')
+
+  /*
+   * An objective the simulation cannot read is a daily nobody can win, and it
+   * says nothing about it: objectiveMet answers false for a title it does not
+   * know, by design, so a typo in the rotation or a puzzle added without the
+   * matching case just quietly never pays out. Checked against the cases the
+   * function actually handles, because no season can tell the difference
+   * between "not achieved" and "not understood".
+   */
+  const sim = await readFile('src/game/sim.ts', 'utf8')
+  const body = sim.slice(sim.indexOf('function objectiveMet('))
+  const known = new Set(
+    [...body.slice(0, body.indexOf('\n}')).matchAll(/case '([^']+)'/g)].map((m) => m[1]),
+  )
+  const objectives = [...new Set(challenges.map((c) => c.objective.title))]
+  const unknown = objectives.filter((t) => !known.has(t))
+  check(unknown.length === 0, `all ${objectives.length} daily objectives are ones the simulation reads`,
+    unknown.length ? `never winnable: ${unknown.join(' · ')}` : `${known.size} handled`)
+
+  // And the fixed sequence still fills an eleven, for every puzzle in the year.
+  const stuck: string[] = []
+  for (const c of [...new Map(challenges.map((x) => [`${x.format}/${x.presetId}`, x])).values()]) {
+    const config = base({ format: c.format, presetId: c.presetId })
+    const pool = poolFor(config)
+    const rules = rulesFor(config)
+    let slots = buildSlots(config.presetId)
+    let cursor = 0
+    let guard = 0
+    while (!isComplete(slots) && guard++ < 300) {
+      const feas = feasibility(pool, slots)
+      const draw = drawFromSequence(c.sequence, cursor, slots, pool, rules, feas)
+      cursor = draw.cursor
+      const wanted = choose(draw.squad, slots, rules, 'BEST', feas)
+      if (!wanted) break
+      slots = place(slots, wanted.p, wanted.open[0])
+    }
+    if (!isComplete(slots)) stuck.push(`${c.format}/${c.presetId} stalled at ${filledCount(slots)}/11`)
+  }
+  check(stuck.length === 0, 'every daily puzzle in the rotation drafts to eleven', stuck.join(' · '))
+}
+
+/* ── The live draft: four XIs out of one pool ─────────────────────────── */
+{
+  /*
+   * The live room is a different draft to the solo one and breaks differently.
+   * Seats share a pool, so a squad can hold exactly the roles a seat needs and
+   * none of the players — the others ate them — and the older code counted
+   * those as pickable. The bot then had nothing legal to return, and a draft
+   * with a dead clock and no possible pick is a room nobody can leave except
+   * by abandoning it.
+   *
+   * So: whole rooms, every seat played by the bot, on the narrowest settings a
+   * host can actually choose.
+   */
+  const broke: string[] = []
+  let rooms = 0
+  for (const format of FORMAT_ORDER) {
+    for (const preset of PRESETS) {
+      for (const seats of [2, 3, 4]) {
+        for (const worldTeams of [true, false]) {
+          const [lo, hi] = yearsForFormat(format)
+          const config = base({
+            format, presetId: preset.id, scope: 'ALL', worldTeams,
+            overseasCap: !worldTeams, years: [hi - 4, hi],
+          })
+          if (!canFillPreset(poolFor(config), preset.id)) continue
+          rooms++
+          const order = drawOrder(config, 1000 + rooms)
+          const picks: { pick_no: number; seat: number; player_id: string; slot: number; squad_id: string }[] = []
+          const taken = new Set<string>()
+          const label = `${format}/${preset.id}/${seats} seats/world:${worldTeams}`
+
+          for (let pickNo = 0; pickNo < totalPicks(seats); pickNo++) {
+            const xis = seatSlots(config, order, picks, seats)
+            const onTurn = snakeSeat(pickNo, seats)
+            const slots = xis[onTurn]
+            const feas = feasibility(order, slots, taken)
+            const squad = squadForPick(order, pickNo, slots, config, feas)
+            if (!squad) { broke.push(`${label}: no squad to offer at pick ${pickNo}`); break }
+            const choice = botPick(squad, slots, taken, config, feas)
+            if (!choice) { broke.push(`${label}: nothing pickable at pick ${pickNo}`); break }
+            taken.add(choice.player.playerId)
+            picks.push({
+              pick_no: pickNo, seat: onTurn, squad_id: squad.id,
+              player_id: choice.player.playerId, slot: choice.slot,
+            })
+          }
+
+          const xis = seatSlots(config, order, picks, seats)
+          xis.forEach((slots, seat) => {
+            if (!isComplete(slots)) broke.push(`${label}: seat ${seat} finished ${filledCount(slots)}/11`)
+          })
+          // One pool, so nobody may appear in two sides at once.
+          const all = xis.flatMap((slots) => xiOf(slots).map((p) => p.playerId))
+          if (new Set(all).size !== all.length) broke.push(`${label}: a player in two XIs`)
+        }
+      }
+    }
+  }
+  check(broke.length === 0, `${rooms} live rooms drafted out, every seat to eleven`,
+    broke.length ? `${broke.length} broke · ${broke.slice(0, 4).join(' · ')}` : 'no seat left short, no player in two sides')
 }
 
 console.log(bad ? `\n  ${bad} of the draft's promises do not hold` : '\n  the draft builds what was chosen')

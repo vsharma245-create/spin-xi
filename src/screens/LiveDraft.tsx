@@ -32,7 +32,7 @@ import {
 import { makeRng } from '../game/draft'
 import { playSeason } from '../game/sim'
 import { seasonIndex } from '../game/types'
-import { openSlotsFor, rulesFor } from '../game/draft'
+import { feasibility, openSlotsFor, rulesFor } from '../game/draft'
 import { TOURNAMENTS } from '../game/types'
 import type { DraftConfig } from '../game/types'
 
@@ -153,8 +153,19 @@ export default function LiveDraft() {
   )
   // For the seat on turn, and skipping any side that cannot fill one of its
   // remaining slots — otherwise a draft can reach a pick nobody can make.
-  const squad = config ? squadForPick(order, pickNo, xis[onTurn], config) : null
   const taken = useMemo(() => new Set(roundPicks.map((p) => p.player_id)), [roundPicks])
+  /*
+   * Read for the seat on turn, and it has to know what the other seats have
+   * already eaten: four XIs come out of one pool here. Without that a squad
+   * looks pickable because it holds the right roles, when every one of those
+   * players is already in somebody else's side — and the draft stops with the
+   * clock at zero and no pick anybody can make.
+   */
+  const feas = useMemo(
+    () => (config ? feasibility(order, xis[onTurn] ?? [], taken) : undefined),
+    [config, order, xis, onTurn, taken],
+  )
+  const squad = config ? squadForPick(order, pickNo, xis[onTurn], config, feas) : null
   const left = room ? secondsLeft(roundPicks.at(-1)?.created_at ?? null, room.started_at, room.pick_seconds) : 0
   const mine = mySeat !== null && onTurn === mySeat && !done && room?.status === 'drafting'
 
@@ -169,7 +180,7 @@ export default function LiveDraft() {
     botting.current = true
     void (async () => {
       const slots = xis[onTurn]
-      const choice = slots && botPick(squad, slots, taken, config)
+      const choice = slots && botPick(squad, slots, taken, config, feas)
       if (choice) {
         await makePick({
           room_id: room.id,
@@ -184,7 +195,7 @@ export default function LiveDraft() {
       }
       botting.current = false
     })()
-  }, [tick, left, room, config, squad, done, onTurn, pickNo, xis, taken, mySeat, refresh])
+  }, [tick, left, room, config, squad, done, onTurn, pickNo, xis, taken, feas, mySeat, refresh])
 
   const copyCode = async () => {
     await navigator.clipboard.writeText(room?.code ?? '').catch(() => {})
@@ -538,7 +549,8 @@ export default function LiveDraft() {
                 .filter((p) => !taken.has(p.playerId))
                 .slice(0, 12)
                 .map((p) => {
-                  const open = mySeat === null ? [] : openSlotsFor(p, xis[onTurn] ?? [], rulesFor(config))
+                  const open =
+                    mySeat === null ? [] : openSlotsFor(p, xis[onTurn] ?? [], rulesFor(config), feas)
                   const usable = mine && open.length > 0
                   return (
                     <PlayerCard
