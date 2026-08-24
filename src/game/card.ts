@@ -120,7 +120,8 @@ function battingCard(
    * than something asserted and left to contradict the total.
    */
   const wanted = runsBy.map((r, i) => {
-    const rate = sr * (0.7 + (batters[i].bat / 100) * 0.6) * (0.8 + rand() * 0.5)
+    const rate =
+      sr * (0.7 + (batters[i].bat / 100) * 0.6) * tempoOf(batters[i]) * (0.8 + rand() * 0.5)
     return Math.max(1, (r / rate) * 100)
   })
   const wantedSum = wanted.reduce((a, b) => a + b, 0)
@@ -268,6 +269,28 @@ function bowlingCard(
     runs: runsBy[i],
     wickets: Math.min(wicketsBy[i], 10),
   }))
+}
+
+/**
+ * How quickly this player scores, as against how well.
+ *
+ * Runs and balls were shared out on the batting rating alone, so two players
+ * rated the same scored at the same speed — and Sehwag played out a fifty in
+ * sixty-nine deliveries like an opener whose job was to see off the new ball.
+ * How good someone is and how they go about it are different things, and the
+ * card has carried both all along: the strike rate is right there on the front
+ * of it, ranked against everyone else in the format.
+ *
+ * All-rounders and bowlers show different figures and have no strike rate to
+ * read, so they score at the ordinary rate for their batting. That is the
+ * right way round — the players this is about are the ones at the top of the
+ * order, and they are the ones whose cards carry it.
+ */
+const tempoOf = (p: PlayerSeason) => {
+  const sr = p.stats.find((s) => s.label === 'SR')?.value
+  if (sr === undefined) return 1
+  // The scale runs 40 to 99, so this is roughly a fifth either way.
+  return 0.78 + ((Math.max(40, Math.min(99, sr)) - 40) / 59) * 0.44
 }
 
 /** Their batting order: best batters up top, the way a real side lines up. */
