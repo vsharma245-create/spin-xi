@@ -53,11 +53,22 @@ export const ROSTER_COLUMNS = [
   'role', 'alt_roles', 'ovr', 's1', 's2', 's3',
 ].join(',')
 
+/*
+ * A quick bowler's headline figure was labelled PACE, which reads as speed —
+ * and it is not speed. It is what the bowling was worth: wickets taken, runs
+ * conceded, against whom. Nothing in the ball-by-ball record says how fast a
+ * delivery left the hand, so no rating here can rank bowlers by pure speed,
+ * and calling one PACE invited exactly that reading — why is Shoaib Akhtar
+ * not top, why is Brett Lee behind Mitchell Johnson.
+ *
+ * THREAT says what is actually measured, and pairs with the spinner's GUILE:
+ * two ways of being hard to get away, neither of them a speed gun.
+ */
 const STAT_LABELS: Record<Role, [string, string, string]> = {
   BAT: ['BAT', 'CONS', 'SR'],
   WK: ['KEEP', 'BAT', 'SR'],
   AR: ['BAT', 'BOWL', 'IMPCT'],
-  PACE: ['PACE', 'WKT', 'ECON'],
+  PACE: ['THREAT', 'WKT', 'ECON'],
   SPIN: ['GUILE', 'WKT', 'ECON'],
 }
 
