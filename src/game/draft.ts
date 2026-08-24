@@ -366,6 +366,7 @@ export function newDraft(
   mode: DraftMode,
   config: DraftConfig,
   dailyId: number | null = null,
+  restartsUsed = 0,
 ): DraftState {
   return {
     mode,
@@ -374,11 +375,35 @@ export function newDraft(
     currentSquad: null,
     maxSkips: DIFFICULTY[config.difficulty].skips,
     skipsUsed: 0,
+    restartsUsed,
     dailyCursor: 0,
     dailyId,
     captainId: null,
     recent: [],
   }
+}
+
+/**
+ * Restarts left.
+ *
+ * The daily gets none whatever the difficulty says. It is one draw that
+ * everybody in the world plays on the same day, and a player who can keep
+ * restarting until the draw suits them is not playing the same puzzle as the
+ * person they are about to be ranked against.
+ */
+export function restartsLeft(state: DraftState): number {
+  if (state.mode === 'daily') return 0
+  return Math.max(0, DIFFICULTY[state.config.difficulty].restarts - state.restartsUsed)
+}
+
+/** A number from a string, for seeding a shuffle off a squad id. */
+export function hashOf(text: string): number {
+  let h = 2166136261
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
 }
 
 /** Default captain: best player, with all-rounders and keepers nudged up. */

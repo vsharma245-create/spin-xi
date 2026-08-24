@@ -24,12 +24,12 @@ import {
 } from '../src/game/live'
 import {
   buildSlots, canFillPreset, canSwap, drawFromSequence, drawSquad, filledCount, isComplete,
-  makeRng, moveSlot,
+  hashOf, makeRng, moveSlot, newDraft, restartsLeft,
   feasibility, openSlotsFor, place, poolFor, presetById, rulesFor, squadHasPlaceable, xiOf,
 } from '../src/game/draft'
 import { DIFFICULTY, FORMAT_ORDER, PRESETS, XI_SIZE } from '../src/game/types'
 import { HOME_NATION, OVERSEAS_LIMIT } from '../src/data/nations'
-import type { DraftConfig, PlayerSeason, RatingMode, Slot, Squad } from '../src/game/types'
+import type { Difficulty, DraftConfig, PlayerSeason, RatingMode, Slot, Squad } from '../src/game/types'
 
 const db = new PGlite()
 await db.exec(await readFile('supabase/schema.sql', 'utf8'))
@@ -566,6 +566,74 @@ function playDraft(config: DraftConfig, seed: number, taste: Taste) {
   }
   check(broke.length === 0, `${rooms} live rooms drafted out, every seat to eleven`,
     broke.length ? `${broke.length} broke · ${broke.slice(0, 4).join(' · ')}` : 'no seat left short, no player in two sides')
+}
+
+/* ── Hard hides the ratings, and the order must not give them back ────── */
+{
+  /*
+   * Hiding the numbers is worth nothing if the list is still sorted by them:
+   * the top card is the best card whether or not it says so. Checked by rank
+   * correlation between where a card sits and how good it is — on Hard that
+   * should be near zero, and the shuffle has to hold still between renders or
+   * the cards would jump around under the player's finger.
+   */
+  const pool = poolFor(base({ format: 'T20L' }))
+  const rankCorrelation = (order: (squad: Squad) => string[]) => {
+    const all: number[] = []
+    for (const squad of pool.slice(0, 300)) {
+      const n = squad.players.length
+      /*
+       * Only squads big enough for the number to mean anything. A shuffle of
+       * five cards lands at 0.6 by luck about as often as not, so a worst-case
+       * across small squads measures nothing but squad size.
+       */
+      if (n < 12) continue
+      const byOvr = [...squad.players].sort((a, b) => b.ovr - a.ovr).map((p) => p.id)
+      const place = new Map(order(squad).map((id, i) => [id, i]))
+      let d2 = 0
+      byOvr.forEach((id, i) => { d2 += (i - (place.get(id) ?? 0)) ** 2 })
+      all.push(1 - (6 * d2) / (n * (n * n - 1)))
+    }
+    return all.reduce((a, b) => a + b, 0) / Math.max(1, all.length)
+  }
+
+  const shuffledOrder = (squad: Squad) =>
+    [...squad.players]
+      .sort((a, b) => hashOf(`${squad.id}:0:${a.id}`) - hashOf(`${squad.id}:0:${b.id}`))
+      .map((p) => p.id)
+  const ratedOrder = (squad: Squad) =>
+    [...squad.players].sort((a, b) => b.ovr - a.ovr).map((p) => p.id)
+
+  const shuffled = rankCorrelation(shuffledOrder)
+  const rated = rankCorrelation(ratedOrder)
+  // The rated ordering is what Easy and Normal show, and it must score 1 —
+  // otherwise this measures nothing and the Hard result proves nothing either.
+  check(rated > 0.99, 'the measure has teeth: a rating-ordered list scores 1', rated.toFixed(3))
+  check(Math.abs(shuffled) < 0.1, 'on Hard the card order says nothing about the ratings',
+    `average rank correlation ${shuffled.toFixed(3)} against ${rated.toFixed(3)} when sorted`)
+
+  const squad = pool[0]
+  const salt = `${squad.id}:0`
+  const once = [...squad.players].sort((a, b) => hashOf(`${salt}:${a.id}`) - hashOf(`${salt}:${b.id}`)).map((p) => p.id)
+  const again = [...squad.players].sort((a, b) => hashOf(`${salt}:${a.id}`) - hashOf(`${salt}:${b.id}`)).map((p) => p.id)
+  check(once.join() === again.join(), 'and it is the same shuffle every time it is asked for')
+}
+
+/* ── Starting again is not a free escape ──────────────────────────────── */
+{
+  /*
+   * The re-rolls were limited and restarting was not, so anybody who disliked
+   * their draw could take draws until one suited — a longer way round the
+   * difficulty than a re-roll, and the only one that cost nothing.
+   */
+  const of = (difficulty: Difficulty, mode: 'quick' | 'daily' = 'quick', used = 0) =>
+    restartsLeft({ ...newDraft(mode, base({ difficulty })), restartsUsed: used })
+  check(of('EASY') === 3 && of('NORMAL') === 1 && of('HARD') === 0,
+    'restarts fall as difficulty rises', `${of('EASY')} / ${of('NORMAL')} / ${of('HARD')}`)
+  check(of('NORMAL', 'quick', 1) === 0 && of('EASY', 'quick', 3) === 0,
+    'and they run out once spent')
+  check(of('EASY', 'daily') === 0,
+    'the daily allows none at any difficulty — everybody plays the one draw')
 }
 
 console.log(bad ? `\n  ${bad} of the draft's promises do not hold` : '\n  the draft builds what was chosen')

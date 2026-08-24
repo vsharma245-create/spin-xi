@@ -14,6 +14,9 @@ import {
   drawFromSequence,
   drawSquad,
   feasibility,
+  filledCount,
+  hashOf,
+  restartsLeft,
   isComplete,
   makeRng,
   openSlotsFor,
@@ -69,6 +72,12 @@ export default function DraftBoard({
    * a slot that would leave the eleventh place unfillable is never offered.
    */
   const feas = useMemo(() => feasibility(pool, state.slots), [pool, state.slots])
+  const restarts = restartsLeft(state)
+  /** Stable per squad and per pick, so the shuffle does not move underfoot. */
+  const shuffleRank = useMemo(() => {
+    const salt = `${target?.id ?? ''}:${filledCount(state.slots)}`
+    return (id: string) => hashOf(`${salt}:${id}`)
+  }, [target, state.slots])
   const filled = state.slots.filter((s) => s.player).length
   const daily = state.mode === 'daily' ? todaysChallenge() : null
 
@@ -187,9 +196,13 @@ export default function DraftBoard({
             <div className="flex items-center gap-2.5">
               <button
                 onClick={() => setAbandoning(true)}
-                className="text-[10px] font-bold uppercase tracking-label text-moss hover:text-leather"
+                disabled={restarts === 0}
+                className={`text-[10px] font-bold uppercase tracking-label ${
+                  restarts === 0 ? 'cursor-not-allowed text-moss/35' : 'text-moss hover:text-leather'
+                }`}
+                title={restarts === 0 ? 'No restarts left at this difficulty' : undefined}
               >
-                restart
+                restart{restarts > 0 && restarts < 9 ? ` · ${restarts}` : ''}
               </button>
               <span className="label">skips</span>
               <div className="flex gap-1">
@@ -334,7 +347,21 @@ export default function DraftBoard({
                           const open =
                             Number(canPlace(b, state.slots, rules, feas)) -
                             Number(canPlace(a, state.slots, rules, feas))
-                          return open || b.ovr - a.ovr
+                          if (open) return open
+                          /*
+                           * Hard hides the ratings, but listing them best-first
+                           * handed them straight back: the top card was the best
+                           * card whether or not its number was showing. On Hard
+                           * the order is shuffled instead, so knowing who to take
+                           * means knowing the player.
+                           *
+                           * Seeded off the squad and how far the draft has got,
+                           * so it holds still between renders and every player
+                           * drawing this squad at this point sees the same order
+                           * — the daily has to be the same puzzle for everybody.
+                           */
+                          if (!state.config.hideRatings) return b.ovr - a.ovr
+                          return shuffleRank(a.id) - shuffleRank(b.id)
                         })
                         .map((p, i) => {
                         const open = openSlotsFor(p, state.slots, rules, feas)

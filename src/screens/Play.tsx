@@ -179,9 +179,9 @@ export default function Play() {
     setPhase('sim')
   }
 
-  const start = (config: DraftConfig) => {
+  const start = (config: DraftConfig, restartsUsed = 0) => {
     beginDraft(config, 'quick')
-    setState(newDraft('quick', config))
+    setState(newDraft('quick', config, null, restartsUsed))
     setPhase('draft')
   }
 
@@ -201,7 +201,8 @@ export default function Play() {
       picks: state.slots.filter((slot) => slot.player).length,
       seconds: Math.round((Date.now() - startedAt.current) / 1000),
     })
-    start({ ...state.config, ...next })
+    // Counted across the restart, or the limit would reset itself.
+    start({ ...state.config, ...next }, state.restartsUsed + 1)
   }
 
   const finish = (r: TournamentResult) => {

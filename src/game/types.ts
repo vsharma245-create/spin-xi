@@ -154,11 +154,20 @@ export type Difficulty = 'EASY' | 'NORMAL' | 'HARD'
 
 export const DIFFICULTY: Record<
   Difficulty,
-  { skips: number; hideRatings: boolean; label: string; note: string }
+  { skips: number; restarts: number; hideRatings: boolean; label: string; note: string }
 > = {
-  EASY: { skips: 5, hideRatings: false, label: 'EASY', note: '5 re-rolls' },
-  NORMAL: { skips: 3, hideRatings: false, label: 'NORMAL', note: '3 re-rolls' },
-  HARD: { skips: 0, hideRatings: true, label: 'HARD', note: 'no re-rolls · ratings hidden' },
+  /*
+   * Restarts are limited for the same reason re-rolls are.
+   *
+   * A re-roll costs one of a handful and the whole difficulty is built around
+   * that; starting the draft again cost nothing and could be done forever, so
+   * anyone who did not like their draw could simply keep taking draws until
+   * they did. That is a longer route round the difficulty than a re-roll and
+   * it was the only one with no price on it.
+   */
+  EASY: { skips: 5, restarts: 3, hideRatings: false, label: 'EASY', note: '5 re-rolls · 3 restarts' },
+  NORMAL: { skips: 3, restarts: 1, hideRatings: false, label: 'NORMAL', note: '3 re-rolls · 1 restart' },
+  HARD: { skips: 0, restarts: 0, hideRatings: true, label: 'HARD', note: 'no re-rolls · no restarts · ratings hidden' },
 }
 
 /* ── Pitch conditions ─────────────────────────────────────────────────────── */
@@ -304,6 +313,8 @@ export interface DraftState {
   /** Re-rolls allowed, set by difficulty. */
   maxSkips: number
   skipsUsed: number
+  /** Draws started and walked away from, counted across restarts. */
+  restartsUsed: number
   dailyCursor: number
   dailyId: number | null
   captainId: string | null
