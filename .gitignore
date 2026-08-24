@@ -36,3 +36,4 @@ dist-ssr
 .row-probe.mjs
 .combo-probe.mjs
 .draft-probe.mjs
+.two-client.mjs
