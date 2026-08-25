@@ -1,0 +1,113 @@
+<!doctype html><html><head><meta charset="utf-8"><title>SPIN XI — content cards</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#0A0D13;color:#F4EFE4;font:15px/1.5 Archivo,system-ui,sans-serif;padding:24px}
+ h1{font-weight:900;letter-spacing:-.02em;margin:0 0 4px}
+ p.lead{color:#6E7A73;margin:0 0 20px}
+ button{background:#35D07F;color:#0A0D13;border:0;border-radius:10px;padding:12px 20px;font:800 15px Archivo,sans-serif;cursor:pointer}
+ button.ghost{background:transparent;color:#F4EFE4;border:1px solid rgba(255,255,255,.15);margin-left:8px}
+ .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:24px}
+ .cell{background:#11151E;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:10px}
+ .cell canvas{width:100%;border-radius:8px;display:block}
+ .cap{color:#6E7A73;font-size:12px;margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+ .cap a{color:#35D07F;text-decoration:none;font-weight:700}
+</style></head><body>
+<h1>SPIN XI — 30 days of cards</h1>
+<p class="lead">Click <b>Download all</b>, then find them in your downloads folder. Wide cards are for X, square for Instagram.</p>
+<button onclick="downloadAll('wide')">Download all — X (1200×630)</button>
+<button class="ghost" onclick="downloadAll('square')">Download all — Instagram (1080×1080)</button>
+<div class="grid" id="grid"></div>
+<script>
+const INK='#0A0D13',PANEL='#161B26',CREAM='#F4EFE4',MOSS='#6E7A73',GREEN='#35D07F',GOLD='#D8A657';
+const f=(s,w=800)=>`${w} ${s}px Archivo, Arial, sans-serif`;
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function wrap(c,text,x,y,max,lh){const words=text.split(' ');let line='',yy=y;
+ for(const w of words){const t=line?line+' '+w:w;
+  if(c.measureText(t).width>max&&line){c.fillText(line,x,yy);line=w;yy+=lh}else line=t}
+ c.fillText(line,x,yy);return yy+lh}
+
+/* headline, subline, and up to three figures. Everything here is read out of
+   the archive — see content/README.md. */
+const cards=[
+ ['HERO','Build your ultimate cricket XI','Spin for a real squad. Draft a legend. Simulate the season.',[['42,165','player seasons'],['2,486','squads'],['2002–2026','every season']]],
+ ['PARTNERSHIP','15,282 balls together','Sangakkara & Jayawardene batted more deliveries together than most players face in a career.',[['15,282','balls'],['10,733','runs'],['#1','all-time']]],
+ ['PROMPT','Four spots left','Who is in your all-time XI — and who are you leaving out?',[['11','players'],['168','clubs'],['1','argument']]],
+ ['STAT','Rated 98','Shane Watson, Australia 2012/13 — the best single season in the archive.',[['98','Watson 12/13'],['98','Shakib 2013'],['97','Afridi 2009']]],
+ ['STAT','37,364 runs','Virat Kohli, across 834 matches. Nearly ten thousand clear of second.',[['37,364','Kohli'],['27,750','Warner'],['27,206','Rohit']]],
+ ['DAILY','One draw. One go.','Everybody in the world gets the same eleven spins today.',[['1','attempt'],['0','restarts'],['24h','to beat it']]],
+ ['STAT','984 wickets','James Anderson leads the archive — and only just.',[['984','Anderson'],['939','Ashwin'],['902','Shakib']]],
+ ['FEATURE','Season or Prime','Players exactly as they were that year — or every one of them at their peak.',[['2','modes'],['42,165','cards'],['1','XI']]],
+ ['STAT','What is in here','Every squad since 2002, built from ball-by-ball data.',[['168','teams'],['42,165','player seasons'],['9,455','partnerships']]],
+ ['PARTNERSHIP','8,081 runs together','Rohit and Kohli, at opposite ends, for very nearly a run a ball.',[['8,516','balls'],['8,081','runs'],['0.95','per ball']]],
+ ['POLL','Best all-rounder?','Watson. Shakib. Afridi. Jadeja. All within a point.',[['98','Watson'],['98','Shakib'],['97','Afridi']]],
+ ['FEATURE','Now with weather','Heavy sky, dew under lights, a pitch that turns. The toss finally means something.',[['3','skies'],['3','times of day'],['1','toss']]],
+ ['PARTNERSHIP','10,277 balls opening','Strauss and Cook — third-longest partnership in the archive.',[['10,277','balls'],['5,253','runs'],['#3','all-time']]],
+ ['PROMPT','One country. One XI.','Build a side from a single nation and win a World Cup with it.',[['11','players'],['1','country'],['14','matches']]],
+ ['STAT','The fastest rating','Mitchell Johnson, 95 — highest-rated quick in the archive.',[['95','Johnson'],['94','next'],['0','speed guns']]],
+ ['STAT','Best spinner: 94','Rangana Herath — left-arm, unhurried, and top of the list.',[['94','Herath'],['2','spin slots'],['1','argument']]],
+ ['STAT','The 94 keeper','AB de Villiers kept in 44 seasons and batted in 38. Which card you draft depends on the year.',[['94','rating'],['44','as keeper'],['38','as batter']]],
+ ['STAT','111 seasons','Shakib Al Hasan appears more often than anyone in the archive.',[['111','Shakib'],['107','Gayle'],['101','Bravo']]],
+ ['FEATURE','Live Draft','Four of you, one pool, real time. Take the player your mate is waiting for.',[['4','players'],['1','pool'],['0','mercy']]],
+ ['FEATURE','Test cricket, properly','Four innings a match. Draws included. A pitch that turns by day five.',[['12','Tests'],['4','innings'],['5','days']]],
+ ['STAT','Rated 92','India 2024 — strongest squad in the archive by top-six rating.',[['92','India 2024'],['92','SA 25/26'],['92','Aus 23/24']]],
+ ['FEATURE','106m. 153 kph.','Every match now records the biggest hit and the fastest ball.',[['106m','biggest hit'],['153','kph'],['1','crowd']]],
+ ['POLL','India or Australia?','Both rated 92 across the top six. One tournament.',[['92','India 2024'],['92','Aus 23/24'],['?','winner']]],
+ ['POLL','Who takes the new ball?','Anderson never stopped. Steyn and Starc did it in a hundred fewer matches.',[['984','Anderson'],['849','Steyn'],['859','Starc']]],
+ ['PROMPT','Hard mode','Ratings hidden. No re-rolls. No restarts. Cards shuffled.',[['0','re-rolls'],['0','restarts'],['0','ratings shown']]],
+ ['FEATURE','Season records','Highest score, best figures, best average, biggest hit, fastest ball.',[['6','records'],['14','matches'],['1','season']]],
+ ['STAT','96 with the bat','Yuvraj Singh — the highest pure batting peak in the archive.',[['96','Yuvraj'],['0','opinions'],['42,165','seasons']]],
+ ['FEATURE','Leagues','You and your mates, same settings, play whenever you want.',[['1','code'],['∞','mates'],['1','table']]],
+ ['PROMPT','Show your XI','Post the best side you have actually drafted. No second attempts.',[['11','players'],['1','screenshot'],['0','edits']]],
+ ['HERO','One month in','Every squad since 2002. Every rating from the ball-by-ball record.',[['42,165','player seasons'],['9,455','partnerships'],['168','teams']]],
+];
+
+function draw(c,W,H,card,sq){
+ const [kind,head,sub,figs]=card, P=sq?70:64;
+ c.fillStyle=INK;c.fillRect(0,0,W,H);
+ c.save();c.globalAlpha=.08;c.strokeStyle=GREEN;c.lineWidth=3;
+ for(let i=0;i<5;i++){c.beginPath();c.arc(W-80,H+60,220+i*80,Math.PI,Math.PI*1.55);c.stroke()}c.restore();
+ // wordmark
+ c.fillStyle=CREAM;c.font=f(sq?40:34,900);c.fillText('SPIN',P,P+34);
+ const w=c.measureText('SPIN ').width;
+ c.fillStyle=GOLD;rr(c,P+w,P+4,sq?74:62,sq?42:36,10);c.fill();
+ c.fillStyle=INK;c.font=f(sq?30:26,900);c.fillText('XI',P+w+15,P+33);
+ c.fillStyle=MOSS;c.font=f(14,700);c.fillText(kind,P,P+62);
+ // headline
+ c.fillStyle=CREAM;c.font=f(sq?68:62,900);
+ let y=wrap(c,head,P,sq?P+190:P+165,W-P*2,sq?76:70);
+ c.fillStyle=MOSS;c.font=f(sq?26:24,600);
+ y=wrap(c,sub,P,y+(sq?18:10),W-P*2,sq?36:32);
+ // figures
+ const bw=(W-P*2-32)/3, by=H-P-(sq?150:120);
+ figs.forEach((s,i)=>{const x=P+i*(bw+16);
+  c.fillStyle=PANEL;rr(c,x,by,bw,sq?120:96,16);c.fill();
+  c.fillStyle=i===0?GREEN:CREAM;c.font=f(sq?40:34,900);c.fillText(s[0],x+20,by+(sq?62:52));
+  c.fillStyle=MOSS;c.font=f(sq?17:15,700);c.fillText(s[1].toUpperCase(),x+20,by+(sq?92:78));});
+ c.fillStyle=GREEN;c.font=f(sq?24:21,800);c.fillText('spin-xi.com',P,H-P+(sq?12:8));
+}
+
+const grid=document.getElementById('grid');
+cards.forEach((card,i)=>{
+ const cell=document.createElement('div');cell.className='cell';
+ const cv=document.createElement('canvas');cv.width=1200;cv.height=630;
+ cell.appendChild(cv);
+ const cap=document.createElement('div');cap.className='cap';
+ cap.innerHTML=`<span>Day ${String(i+1).padStart(2,'0')} · ${card[0]}</span>`;
+ const a=document.createElement('a');a.href='#';a.textContent='download';
+ a.onclick=e=>{e.preventDefault();save(cv,`day-${String(i+1).padStart(2,'0')}-${card[0].toLowerCase()}-x.png`)};
+ cap.appendChild(a);cell.appendChild(cap);grid.appendChild(cell);
+ document.fonts.ready.then(()=>draw(cv.getContext('2d'),1200,630,card,false));
+});
+
+function save(cv,name){const a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download=name;a.click()}
+async function downloadAll(shape){
+ const sq=shape==='square', W=sq?1080:1200, H=sq?1080:630;
+ await document.fonts.ready;
+ for(let i=0;i<cards.length;i++){
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  draw(cv.getContext('2d'),W,H,cards[i],sq);
+  save(cv,`day-${String(i+1).padStart(2,'0')}-${cards[i][0].toLowerCase()}-${sq?'ig':'x'}.png`);
+  await new Promise(r=>setTimeout(r,220));
+ }
+}
+</script></body></html>

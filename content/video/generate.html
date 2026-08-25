@@ -1,0 +1,249 @@
+<!doctype html><html><head><meta charset="utf-8"><title>SPIN XI — video generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#0A0D13;color:#F4EFE4;font:15px/1.55 Archivo,system-ui,sans-serif;padding:24px}
+ h1{font-weight:900;margin:0 0 4px;letter-spacing:-.02em}
+ p.lead{color:#6E7A73;max-width:70ch;margin:0 0 20px}
+ .row{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+ canvas{width:270px;height:480px;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:#000}
+ .panel{flex:1;min-width:300px}
+ button{background:#35D07F;color:#0A0D13;border:0;border-radius:10px;padding:12px 18px;font:800 15px Archivo,sans-serif;cursor:pointer;margin:0 8px 8px 0}
+ button.ghost{background:transparent;color:#F4EFE4;border:1px solid rgba(255,255,255,.15)}
+ button:disabled{opacity:.4;cursor:not-allowed}
+ .list{display:grid;gap:8px;margin:16px 0}
+ .item{background:#11151E;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+ .item b{font-weight:800}.item span{color:#6E7A73;font-size:13px}
+ #status{color:#35D07F;font-weight:700;min-height:22px}
+</style></head><body>
+<h1>SPIN XI — video generator</h1>
+<p class="lead">Renders animated promos and saves them as real video files. Pick one, press
+<b>Render &amp; download</b>, and a <code>.webm</code> lands in your downloads folder — 1080×1920,
+ready for Reels, Shorts or X. No screen recording, no editing.</p>
+
+<div class="row">
+ <canvas id="stage" width="1080" height="1920"></canvas>
+ <div class="panel">
+  <div class="list" id="list"></div>
+  <button id="all">Render &amp; download all</button>
+  <button class="ghost" id="preview">Preview selected</button>
+  <div id="status"></div>
+  <p class="lead" style="margin-top:16px;font-size:13px">
+   Safari cannot record canvas video. Use Chrome or Edge.<br>
+   To post as MP4, drop the .webm into any free online converter, or import straight
+   into CapCut/InShot — both accept webm.
+  </p>
+ </div>
+</div>
+
+<script>
+const C=document.getElementById('stage'), X=C.getContext('2d');
+const W=1080,H=1920;
+const INK='#0A0D13',PANEL='#161B26',CREAM='#F4EFE4',MOSS='#6E7A73',GREEN='#35D07F',GOLD='#D8A657',LEATHER='#C1553F';
+const f=(s,w=800)=>`${w} ${s}px Archivo, Arial, sans-serif`;
+const ease=t=>1-Math.pow(1-t,3);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function bg(c){c.fillStyle=INK;c.fillRect(0,0,W,H);
+ c.save();c.globalAlpha=.06;c.strokeStyle=GREEN;c.lineWidth=4;
+ for(let i=0;i<6;i++){c.beginPath();c.arc(W+80,H+120,320+i*130,Math.PI,Math.PI*1.6);c.stroke()}c.restore()}
+function mark(c,y=150){c.fillStyle=CREAM;c.font=f(58,900);c.fillText('SPIN',80,y);
+ const w=c.measureText('SPIN ').width;c.fillStyle=GOLD;rr(c,80+w,y-46,104,58,12);c.fill();
+ c.fillStyle=INK;c.font=f(42,900);c.fillText('XI',80+w+22,y-4)}
+function wrap(c,t,x,y,max,lh){const ws=t.split(' ');let l='',yy=y;
+ for(const w of ws){const s=l?l+' '+w:w;if(c.measureText(s).width>max&&l){c.fillText(l,x,yy);l=w;yy+=lh}else l=s}
+ c.fillText(l,x,yy);return yy+lh}
+function fade(c,a){c.save();c.globalAlpha=a}
+const SQUADS=['MUMBAI 2019','CHENNAI 2021','AUSTRALIA 2015','INDIA 2011','ENGLAND 2019','BARBADOS 2016','PUNJAB 2024','SYDNEY 2020','LAHORE 2022','SOUTH AFRICA 2023'];
+const PICKS=[['KOHLI','BAT','92'],['BUMRAH','PACE','90'],['DE VILLIERS','WK','94'],['JADEJA','AR','97'],['HERATH','SPIN','94'],['WARNER','BAT','92']];
+
+/* ── Scenes ────────────────────────────────────────────────────────────── */
+function sceneSpin(c,t,d){ // t 0..1 — the reel, which is the whole hook
+ bg(c);mark(c);
+ c.fillStyle=MOSS;c.font=f(30,700);c.fillText('SPINNING FOR A SQUAD',80,230);
+ const speed=1-ease(clamp(t*1.25,0,1));
+ const idx=Math.floor(t*40*(0.25+speed))%SQUADS.length;
+ const settled=t>0.82;
+ c.fillStyle=settled?GREEN:CREAM;c.font=f(settled?92:78,900);
+ const name=settled?'MUMBAI 2019':SQUADS[idx];
+ wrap(c,name,80,H/2-40,W-160,100);
+ if(settled){const p=ease(clamp((t-0.82)/0.18,0,1));
+  fade(c,p);c.fillStyle=MOSS;c.font=f(34,700);c.fillText('PICK ONE PLAYER',80,H/2+110);c.restore()}
+}
+function sceneCards(c,t){ // cards dealing in
+ bg(c);mark(c);
+ c.fillStyle=MOSS;c.font=f(30,700);c.fillText('MUMBAI 2019',80,230);
+ for(let i=0;i<4;i++){
+  const p=ease(clamp((t-i*0.13)/0.4,0,1)); if(p<=0)continue;
+  const x=80+(i%2)*470, y=340+Math.floor(i/2)*520;
+  fade(c,p);c.translate(0,(1-p)*60);
+  c.fillStyle=PANEL;rr(c,x,y,430,470,26);c.fill();
+  c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=2;c.stroke();
+  const pk=PICKS[i];
+  c.fillStyle=+pk[2]>=93?GOLD:CREAM;c.font=f(86,900);c.fillText(pk[2],x+30,y+110);
+  c.fillStyle=GREEN;c.font=f(24,800);c.fillText(pk[1],x+30,y+160);
+  c.fillStyle=CREAM;c.font=f(pk[0].length>9?38:46,900);c.fillText(pk[0],x+30,y+250);
+  c.restore();
+ }
+}
+function sceneBuild(c,t){ // the XI filling up
+ bg(c);mark(c);
+ const n=Math.floor(clamp(t*1.2,0,1)*11);
+ c.fillStyle=CREAM;c.font=f(150,900);c.fillText(String(n).padStart(2,'0'),80,H/2-140);
+ c.fillStyle=MOSS;c.font=f(52,800);c.fillText('/ 11',80+c.measureText('  ').width+230,H/2-140);
+ c.fillStyle=MOSS;c.font=f(34,700);c.fillText('YOUR XI',80,H/2-60);
+ for(let i=0;i<11;i++){
+  const on=i<n, x=80+(i%6)*152, y=H/2+20+Math.floor(i/6)*150;
+  c.fillStyle=on?GREEN:'rgba(255,255,255,.06)';rr(c,x,y,128,128,18);c.fill();
+  if(on){c.fillStyle=INK;c.font=f(40,900);c.fillText(String(i+1),x+48,y+82)}
+ }
+}
+function sceneResult(c,t,cfg){
+ bg(c);mark(c);
+ const p=ease(clamp(t*1.6,0,1));
+ fade(c,p);
+ c.fillStyle=cfg.win?GREEN:GOLD;c.font=f(96,900);
+ wrap(c,cfg.head,80,520,W-160,108);
+ c.fillStyle=CREAM;c.font=f(190,900);c.fillText(cfg.record,80,780);
+ c.fillStyle=MOSS;c.font=f(36,700);c.fillText(cfg.sub,80,850);
+ c.restore();
+ // match blocks marching in
+ for(let i=0;i<14;i++){
+  const q=ease(clamp((t-0.25-i*0.035)/0.3,0,1)); if(q<=0)continue;
+  const x=80+i*66, y=980;
+  c.save();c.globalAlpha=q;
+  c.fillStyle=cfg.results[i]==='W'?GREEN:cfg.results[i]==='D'?GOLD:LEATHER;
+  rr(c,x,y,52,52,10);c.fill();c.restore();
+ }
+}
+function sceneEnd(c,t,line){
+ bg(c);
+ const p=ease(clamp(t*1.8,0,1));
+ fade(c,p);
+ c.fillStyle=CREAM;c.font=f(58,900);c.fillText('SPIN',80,H/2-120);
+ const w=c.measureText('SPIN ').width;c.fillStyle=GOLD;rr(c,80+w,H/2-166,104,58,12);c.fill();
+ c.fillStyle=INK;c.font=f(42,900);c.fillText('XI',80+w+22,H/2-124);
+ c.fillStyle=CREAM;c.font=f(70,900);wrap(c,line,80,H/2-10,W-160,84);
+ c.fillStyle=GREEN;c.font=f(46,800);c.fillText('spin-xi.com',80,H/2+240);
+ c.restore();
+}
+function caption(c,t,txt,at){ // burned-in subtitle, appears at `at`
+ if(t<at)return;const p=ease(clamp((t-at)/0.12,0,1));
+ c.save();c.globalAlpha=p;
+ c.fillStyle='rgba(10,13,19,.82)';rr(c,60,H-320,W-120,150,20);c.fill();
+ c.fillStyle=CREAM;c.font=f(46,800);wrap(c,txt,90,H-240,W-180,56);c.restore();
+}
+
+/* ── Films: a list of [duration, drawFn] ───────────────────────────────── */
+const films={
+'01-what-it-is':{len:20,name:'What it is',parts:[
+ [5,(c,t)=>{sceneSpin(c,t);caption(c,t,'Spin for a real squad',.15)}],
+ [5,(c,t)=>{sceneCards(c,t);caption(c,t,'Draft one player',.1)}],
+ [5,(c,t)=>{sceneBuild(c,t);caption(c,t,'Eleven times',.1)}],
+ [5,(c,t)=>{sceneResult(c,t,{win:true,head:'CHAMPIONS',record:'11–3',sub:'26 POINTS · 1ST OF 10',results:'WWLWWWLWWWDWWW'.split('')});caption(c,t,'Then play the season',.1)}]]},
+'05-blind-draft':{len:18,name:'Blind draft (Hard mode)',parts:[
+ [4,(c,t)=>{bg(c);mark(c);c.fillStyle=CREAM;c.font=f(86,900);wrap(c,'RATINGS HIDDEN',80,560,W-160,100);
+  c.fillStyle=MOSS;c.font=f(40,700);c.fillText('no re-rolls · no restarts',80,700);caption(c,t,'How well do you know cricket?',.3)}],
+ [7,(c,t)=>{bg(c);mark(c);c.fillStyle=MOSS;c.font=f(30,700);c.fillText('PICK ONE PLAYER',80,230);
+  for(let i=0;i<4;i++){const p=ease(clamp((t-i*0.12)/0.35,0,1));if(p<=0)continue;
+   const x=80+(i%2)*470,y=340+Math.floor(i/2)*520;c.save();c.globalAlpha=p;
+   c.fillStyle=PANEL;rr(c,x,y,430,470,26);c.fill();
+   c.fillStyle=MOSS;c.font=f(86,900);c.fillText('••',x+30,y+110);
+   c.fillStyle=CREAM;c.font=f(42,900);c.fillText(PICKS[i][0],x+30,y+250);c.restore()}
+  caption(c,t,'No numbers. Just the names.',.2)}],
+ [7,(c,t)=>{sceneResult(c,t,{win:false,head:'RUNNERS-UP',record:'9–5',sub:'DRAFTED BLIND',results:'WLWWWLWWLWWLWW'.split('')});caption(c,t,'Beat it.',.5)}]]},
+'08-season-prime':{len:14,name:'Season vs Prime',parts:[
+ [5,(c,t)=>{bg(c);mark(c);c.fillStyle=MOSS;c.font=f(34,700);c.fillText('SEASON FORM',80,240);
+  const p=ease(clamp(t*1.5,0,1));c.save();c.globalAlpha=p;
+  c.fillStyle=PANEL;rr(c,80,340,W-160,560,28);c.fill();
+  c.fillStyle=CREAM;c.font=f(180,900);c.fillText('78',130,560);
+  c.fillStyle=CREAM;c.font=f(64,900);c.fillText('SAME PLAYER',130,700);
+  c.fillStyle=MOSS;c.font=f(36,700);c.fillText('2014',130,780);c.restore();
+  caption(c,t,'As they were that year',.25)}],
+ [5,(c,t)=>{bg(c);mark(c);c.fillStyle=GOLD;c.font=f(34,700);c.fillText('PRIME',80,240);
+  const p=ease(clamp(t*1.5,0,1));c.save();c.globalAlpha=p;
+  c.fillStyle=PANEL;rr(c,80,340,W-160,560,28);c.fill();
+  c.fillStyle=GOLD;c.font=f(180,900);c.fillText('92',130,560);
+  c.fillStyle=CREAM;c.font=f(64,900);c.fillText('SAME PLAYER',130,700);
+  c.fillStyle=MOSS;c.font=f(36,700);c.fillText('AT HIS PEAK',130,780);c.restore();
+  caption(c,t,'...or at the top of his career',.25)}],
+ [4,(c,t)=>sceneEnd(c,t,'Two modes. Two different games.')]]},
+'19-live-draft':{len:16,name:'Live draft',parts:[
+ [5,(c,t)=>{bg(c);mark(c);c.fillStyle=MOSS;c.font=f(34,700);c.fillText('ROOM CODE',80,240);
+  const p=ease(clamp(t*1.4,0,1));c.save();c.globalAlpha=p;
+  c.fillStyle=GREEN;c.font=f(170,900);c.fillText('K7XQ2',80,440);c.restore();
+  c.fillStyle=CREAM;c.font=f(48,800);c.fillText('4 players · one pool',80,560);
+  caption(c,t,'Share a code. Everyone drafts at once.',.25)}],
+ [6,(c,t)=>{bg(c);mark(c);
+  const secs=Math.max(0,30-Math.floor(t*30));
+  c.fillStyle=secs<10?LEATHER:CREAM;c.font=f(200,900);c.fillText(String(secs).padStart(2,'0'),80,420);
+  c.fillStyle=MOSS;c.font=f(38,700);c.fillText('SECONDS ON YOUR PICK',80,490);
+  for(let i=0;i<4;i++){const on=i===Math.floor(t*4)%4;
+   c.fillStyle=on?GREEN:'rgba(255,255,255,.06)';rr(c,80+i*240,620,210,210,24);c.fill();
+   c.fillStyle=on?INK:MOSS;c.font=f(40,900);c.fillText('P'+(i+1),80+i*240+70,620+125)}
+  caption(c,t,'He just took your player.',.55)}],
+ [5,(c,t)=>sceneEnd(c,t,'Settle it in real time.')]]},
+'25-speedrun':{len:22,name:'Speedrun',parts:[
+ [3,(c,t)=>{bg(c);mark(c);c.fillStyle=CREAM;c.font=f(88,900);wrap(c,'FULL XI IN UNDER 3 MINUTES',80,560,W-160,104);caption(c,t,'Watch.',.4)}],
+ [4,(c,t)=>{sceneSpin(c,t)}],
+ [4,(c,t)=>{sceneCards(c,t)}],
+ [5,(c,t)=>{sceneBuild(c,t);caption(c,t,'11 / 11',.7)}],
+ [6,(c,t)=>{sceneResult(c,t,{win:true,head:'CHAMPIONS',record:'12–2',sub:'PERFECT RUN',results:'WWWWWLWWWWWLWW'.split('')});caption(c,t,'Three minutes. One season.',.35)}]]},
+'30-recap':{len:16,name:'What is in here',parts:[
+ [4,(c,t)=>{bg(c);mark(c);const p=ease(clamp(t*1.5,0,1));c.save();c.globalAlpha=p;
+  c.fillStyle=GREEN;c.font=f(190,900);c.fillText('42,165',80,620);
+  c.fillStyle=CREAM;c.font=f(58,800);c.fillText('PLAYER SEASONS',80,710);c.restore()}],
+ [4,(c,t)=>{bg(c);mark(c);const p=ease(clamp(t*1.5,0,1));c.save();c.globalAlpha=p;
+  c.fillStyle=GOLD;c.font=f(190,900);c.fillText('9,455',80,620);
+  c.fillStyle=CREAM;c.font=f(58,800);c.fillText('REAL PARTNERSHIPS',80,710);c.restore()}],
+ [4,(c,t)=>{bg(c);mark(c);const p=ease(clamp(t*1.5,0,1));c.save();c.globalAlpha=p;
+  c.fillStyle=CREAM;c.font=f(190,900);c.fillText('168',80,620);
+  c.fillStyle=CREAM;c.font=f(58,800);c.fillText('TEAMS · 2002–2026',80,710);c.restore()}],
+ [4,(c,t)=>sceneEnd(c,t,'Build an XI. See how far it goes.')]]},
+};
+
+function frameAt(key,time){ // time in seconds
+ const film=films[key];let acc=0;
+ for(const [len,fn] of film.parts){
+  if(time<acc+len){X.save();fn(X,(time-acc)/len);X.restore();return}
+  acc+=len}
+ X.save();film.parts.at(-1)[1](X,1);X.restore();
+}
+
+const list=document.getElementById('list'), status=document.getElementById('status');
+let selected=Object.keys(films)[0];
+for(const [k,v] of Object.entries(films)){
+ const d=document.createElement('div');d.className='item';
+ d.innerHTML=`<span><b>${v.name}</b><br><span>${v.len}s · day ${k.slice(0,2)}</span></span>`;
+ const b=document.createElement('button');b.textContent='Render & download';
+ b.onclick=()=>record(k);d.appendChild(b);
+ d.onclick=()=>{selected=k};
+ list.appendChild(d);
+}
+document.getElementById('preview').onclick=()=>play(selected);
+document.getElementById('all').onclick=async()=>{for(const k of Object.keys(films)){await record(k)}};
+
+function play(key){const film=films[key];const t0=performance.now();
+ (function loop(){const t=(performance.now()-t0)/1000;
+  if(t>film.len){frameAt(key,film.len);return}
+  frameAt(key,t);requestAnimationFrame(loop)})()}
+
+async function record(key){
+ const film=films[key];
+ status.textContent=`Rendering ${film.name}…`;
+ const stream=C.captureStream(30);
+ const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';
+ const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8_000_000});
+ const chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ const done=new Promise(r=>rec.onstop=r);
+ rec.start();
+ const t0=performance.now();
+ await new Promise(res=>{(function loop(){const t=(performance.now()-t0)/1000;
+  if(t>=film.len){res();return}frameAt(key,t);requestAnimationFrame(loop)})()});
+ rec.stop();await done;
+ const blob=new Blob(chunks,{type:'video/webm'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+ a.download=`spinxi-${key}.webm`;a.click();URL.revokeObjectURL(a.href);
+ status.textContent=`Saved spinxi-${key}.webm`;
+}
+document.fonts.ready.then(()=>frameAt(selected,0));
+</script></body></html>

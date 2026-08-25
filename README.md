@@ -97,6 +97,29 @@ strongly drafted XI wins it about **one time in five** and an ordinary one about
   ratings built from its own players. A match is decided by the gap between two
   rated teams, not by an abstract measure of how good you are. A side is rated on
   the eleven it would actually pick, by exactly the formula that rates yours.
+- **Every match has weather.** Day, day-night or under lights; clear, humid or heavy
+  overhead; dew settling later when the air is already wet. Drawn once from the same
+  seeded stream as the rest of the match, so the toss, the scoring and the scorecard
+  all describe the same afternoon. The captain who wins the toss reads it — bowl under
+  a heavy sky because the ball moves, bowl if there will be dew because chasing gets
+  easier once the ball is wet — and says why in words. Losing the toss hands that edge
+  over; it used to cost nothing.
+- **An XI that knows itself is worth something.** Not a table of who got on with whom,
+  which would be an opinion typed into the data. Every delivery names the striker and
+  the man at the other end, so the ball-by-ball pass counts how long two players have
+  actually spent at opposite ends: Sangakkara and Jayawardene 15,282 balls, Strauss and
+  Cook 10,277, Sehwag and Gambhir just under eight thousand. 9,455 pairs qualify. An
+  India side carrying Kohli with Rahane, Kohli with Rohit and Sehwag with Gambhir reads
+  91 for understanding; eleven players from eleven countries read 66. Worth about two
+  points of edge — enough to decide a close match, never enough to outweigh who can
+  actually play.
+- **Prime is read on its own ruler.** Everybody at their best is a tighter field than
+  everybody in a given season, so the same superiority shows up as fewer rating points
+  — seventeen on season form against twelve on prime, measured against the World Cup
+  field. Read through one slope that turned prime into a coin flip: an XI rated 94 went
+  out to Scotland because nine points of edge is worth 64%, and fourteen matches of 64%
+  is a bad fortnight away from a losing record. The conversion knows which ruler it is
+  reading, and the same conversion decides Test draws.
 - Every match is played on one of four surfaces — batting paradise, pace deck,
   spin track, neutral — and the pitch decides which of your ratings matter, for
   *both* teams. A spin-heavy XI eats turners and struggles on green decks.
@@ -158,6 +181,14 @@ batting side that faced ninety-four balls between them — with every strike rat
 inflated to match. Cricket fixes the deliveries and lets the runs vary; so does
 the card.
 
+Every match also records **the biggest hit and the fastest ball** — 106 metres, 153
+kph. Neither is in the ball-by-ball data and neither could be: Cricsheet says a six was
+hit, not where it landed. But the match is simulated in the first place, so these
+belong to the same fiction as the runs and the wickets, and they are drawn from the
+players who did it — the hardest hitter clears the most rows, the quickest bowler bowls
+the quickest ball. What would not be allowed is a fabricated figure attached to a real
+career, and neither of these is that.
+
 `npm run cards:check` reads a thousand cards across all four formats looking for
 cricket a scorer would refuse to write down, and it has caught real things: a
 batter three not out off one ball and given lbw — the single delivery he faced
@@ -215,26 +246,90 @@ inventing them would put men in XIs they never belonged to.
 
 ### How a rating is made
 
-A player-season's rating is its **percentile against everyone who played the same
-format**, computed from what they did:
+A player-season's rating is **how far it stands from the middle**, in standard
+deviations, against everyone who played the same format — not its percentile.
+Percentile was the first attempt and it cannot express distance: rank says a player
+was better than 85% of the field, never whether by a little or a lot. So the great
+and the merely good landed a point apart and 669 players sat at 90 or above. Now
+thirteen players reach 95 across the whole archive, and the top of it reads Shakib,
+Watson, Jadeja, Hafeez, Afridi, Yuvraj.
 
 - **Batting** — runs per innings, scaled by strike rate against the format's par.
 - **Bowling** — wickets per match, scaled by economy against the format's par.
 - **The three figures on a card** are the record, not decoration. `BAT / CONS / SR`
   for a batter is the batting rating, the average and the strike rate; `GUILE /
   WKT / ECON` for a spinner is the bowling rating, wickets per match and economy.
-  Where a player did too little to judge — a batter who faced nine balls — the
-  figure is **left null** rather than guessed, and the client derives one.
+  A quick bowler's headline figure is **THREAT**, not PACE — nothing in ball-by-ball
+  data records how fast a delivery was, and calling it PACE invited exactly the
+  question it could not answer.
 
-Two corrections matter, and both were found by measuring rather than by eye:
+Three corrections matter, and all three were found by measuring rather than by eye.
 
-- **Small seasons regress to the mean.** Impact is a per-match rate, so a short
-  season inflates it. Andrew McBrine's two Tests in 2024 — 189 runs, 11 wickets —
-  came out the highest-rated Test season in the archive. Ratings now regress by
-  matches played, and the top of each format reads as it should: Narine 2024,
-  Watson 2007/08, Jason Holder 2018, Jadeja 2016/17, Flintoff 2003.
-- **Opposition counts.** A hundred against Bermuda is not a hundred against
-  Australia. International impact is weighted by ICC status of the side faced.
+**Competitions are graded against each other.** `standardOf()` returned 1 for
+anything that was not an international, so a hundred in the Bermuda league counted
+like a hundred in the IPL, and John Davison — five Canadian seasons — came out the
+best player in the game at 95, above Tendulkar, Dravid, Ponting, Kallis and Sehwag,
+who all sat at 91. Competitions are now graded from the cricket itself: a two-way
+model over players and competitions, solved by alternating, tied together by the
+people who play in several. It reports SA20 and the IPL as the hardest places to bat
+and the T20 Blast and BPL the easiest — nobody's opinion, just what the same players
+did in both.
+
+**Weak isolated cricket is less evidence, not just less value.** Fourteen wickets in
+eight matches against Bermuda's neighbours survived a 40% haircut and still came out
+in the high eighties. Discounting the value could not fix it, because a player who
+never leaves that cricket has nobody to be compared with — the model believes the
+record because nothing contradicts it. Eight untested matches is closer to three
+matches' worth of knowing, and three matches is not enough to be rated above
+Tendulkar on. Leverock 94 to 84, Dhaniram 87 to 79, Davison 95 to 88.
+
+**Short seasons still regress to the mean**, measured in matches rather than
+deliveries, because impact is a per-match rate: it is a short season that inflates
+it, not a short spell.
+
+### What a player was, as against what they did in one summer
+
+`squad_players` holds a player-season. `players` holds the **player** — primary role,
+peak rating and the format and season it happened in, the side they are remembered
+for, and career totals. The distinction matters because a single season is often too
+thin to say: a spinner who bowled nothing on one tour reads as a batter.
+
+**Roles come from the player's own article where one exists.** 2,704 players have
+their role stated in words — "Batsman", "All-rounder", "Wicket-keeper-batsman" — which
+is a fact about the player rather than an inference from a sample. The rest are read
+from career totals, with bars scaled to a career: three dismissals is a season's
+evidence of keeping and a career's evidence of standing in once.
+
+A season overrules the career only when it has the volume to, and the volume has to be
+in the discipline being claimed. Overs bowled and dismissals taken are evidence that
+something happened; runs scored are not evidence that nothing else did. And the
+fallback never contradicts the row it is written on: a bowler's role is not applied to
+a season with no overs in it, and a keeper's is not applied to a season spent bowling
+seam.
+
+Tendulkar, Sehwag, Dravid, Kohli and Rohit bat. Gilchrist, Dhoni, Sangakkara and
+Buttler keep. Kallis, Stokes, Shakib, Jadeja and Dilshan are all-rounders. Warne and
+Murali spin; McGrath, Steyn, Akram, Malinga and Bumrah bowl quick.
+
+### Prime is a believable peak, not the best number they ever posted
+
+Taking the single best season sounds like what "prime" means and quietly wrecked the
+mode. The maximum of a noisy run is worth more the noisier the run: an all-time great
+is near his best most years and gains almost nothing, while a fringe player's one good
+summer sits far above everything else he did. Priming lifted Zimbabwe's XI twenty-one
+points and Australia's eight, the whole field bunched at the top, and a drafted
+all-star side lost to Scotland.
+
+The peak is now pulled back toward the player's own ordinary level in proportion to
+how little cricket stands behind it — and it is drawn **per format**. Half the archive
+used to take its prime from a different kind of cricket entirely: Shane Watson's T20
+league card went from 65 to 98 on the strength of a World Cup season.
+
+Identity is the **player**, never the name. Forty-one names in the archive belong to
+more than one cricketer — there are two Rashid Khans — so keying on the name made
+drafting one block the other, and lent the better one's peak to the other. And names
+come from the article title where there is one: Cricsheet records Prabhsimran Singh as
+"P Simran Singh", and trimming the initial produced a player who does not exist.
 
 ### Facts a scorecard does not state
 
@@ -327,21 +422,32 @@ collapsed that way before it was caught.
 ### Building and checking it
 
 ```bash
-npm run ingest       # download Cricsheet, aggregate ball-by-ball into ratings
+npm run ingest       # download Cricsheet, aggregate ball-by-ball, count partnerships
+npm run rerate       # grade the competitions and re-score every player-season
 npm run nations      # nationality and full names, by identifier join to Wikidata
 npm run bowling      # each bowler's stated style, from their own article
+npm run roles        # each player's stated role, from their own article
 npm run archive      # write supabase/archive.sql
 npm run db:push      # apply to Supabase
 ```
 
-Five checks, each catching a different kind of wrong:
+The order matters. `ingest` re-parses two gigabytes of ball-by-ball and writes its
+own ratings with the old percentile model; `rerate` replaces them. Skipping the
+middle step silently undoes the whole rating pass, which is the sort of thing that
+is obvious once and never again.
+
+Eight checks, each catching a different kind of wrong:
 
 ```bash
 npm run audit        # is the cricket right? rates, distributions, outliers
-npm run rows:check   # all 42,178 roster rows, 19 rules each, failures printed
+npm run rows:check   # all 42,165 roster rows, 19 rules each, failures printed
+npm run data:check   # the questions only the whole archive can answer
 npm run cards:check  # a thousand scorecards, hunting for impossible cricket
+npm run combos:check # every draft setting, checked for actually doing it
+npm run draft:check  # 2,600 drafts across every crossing of every filter
 npm run db:check     # the SQL against a real Postgres — and as a non-owner
 npm run live:check   # a whole live draft played with nobody watching
+npm run live:prod    # two real clients racing each other on production
 ```
 
 `audit` reports rates, which is the right shape for judging a dataset and the
@@ -354,6 +460,25 @@ and reads the tables as a non-owner — because a fresh database run by its owne
 has no history and bypasses row-level security, which is how three separate
 bugs reached production. `live:check` exists because a backgrounded browser tab
 suspends network IO, so a draft driven through one proves nothing.
+
+`data:check` asks what a single row cannot answer: whether a player is the same
+player wherever they appear, whether their prime is really their prime, whether a
+squad can field an attack, whether the ratings mean anything as a population. It
+found identity keyed on names, primes drawn from the wrong format, and a Kenyan
+squad with three men who could bowl.
+
+`draft:check` plays whole drafts pick by pick — every crossing of format, preset,
+rating mode, world teams, overseas cap and year range, each drafted best-first,
+worst-first and imports-first — and checks the finished XI against the settings that
+opened it. It found that a draft could reach ten of eleven with nothing in the pool
+able to fill the last place, reachable by simply taking the best card offered each
+time.
+
+`live:prod` is the one no offline test can stand in for. Two anonymous accounts, a
+room joined by code, and pick 0 written by both at the same moment: one lands, one is
+refused, one row survives. It also waits out the real thirty-second ready window and
+a real pick clock, because those two rules only exist in wall-clock time. Twenty of
+ninety-six rooms froze before the fix it found.
 
 `db:check` runs the SQL against Postgres compiled to WebAssembly — same parser,
 same constraints, nothing to install. It applies the schema twice and the archive
@@ -549,6 +674,28 @@ played under rules somebody else set, against a field who agreed to them.
 Ranking them against strangers who did not is not a comparison. They still count
 toward a career and toward your level, because they were still played.
 
+## Sharing a season
+
+A share has to do three things, and this did none of them. It copied a block of text
+with no address in it, so whoever read it had no way back. The site carried no Open
+Graph tags, so any link that did get posted unfurled in a group chat as a bare URL.
+And the draw was seeded off the clock, so "I went 11-3, try this" could not mean
+anything even if it had been sent.
+
+- **A picture.** The season is drawn on a canvas — headline, record, points, every
+  match as a block of colour, and the eleven names the argument is actually about —
+  and shared as a file where the browser allows it.
+- **A link**, in every share, which there had never been.
+- **The draw.** It is a number now, carried on the draft state and out to the result,
+  so the link is a challenge rather than a boast: open it and you face the same eleven
+  spins. Nothing changes for the player — the seed advances with each pick and re-roll,
+  so the reel still turns up something new. It is only repeatable from the outside.
+
+`content/` holds thirty days of posts built on figures read out of this archive, and
+two tools that need nothing installed: `images/generate.html` renders every card at
+both aspect ratios, and `video/generate.html` animates six promos on a canvas and
+saves them as real video files. Both are browser pages; open and click.
+
 ## Look
 
 A floodlit evening at the cricket, not a dashboard:
@@ -585,11 +732,15 @@ src/
               icons and crests, ui kit
   screens/    Home, Play (setup→draft→XI→sim→result→trophy), Daily, Leaderboard,
               Profile, Multiplayer, LeaguePage, LiveDraft, Legal
-scripts/      ingest, nations, bowling, challenges, archive,
-              audit, row-probe, card-probe, live-probe, db-check, db-push
+scripts/      ingest, rerate, nations, bowling, roles, challenges, archive,
+              audit, row-probe, data-probe, card-probe, combo-probe, draft-probe,
+              live-probe, two-client-probe, db-check, db-push
+              lib/ratings.mjs — the rating model, shared by ingest and rerate
 supabase/     schema.sql, archive.sql, challenges.sql   (generated)
               players.sql, analytics.sql, multiplayer.sql, live.sql
 data/         bowling.json — each bowler's stated style, committed
+              roles.json   — each player's stated role, committed
+content/      thirty days of posts, and the tools that render them
 ```
 
 One draft engine, one simulation module, one design system. `Play.tsx` owns the
@@ -599,7 +750,9 @@ The game modules split by job: `opponents.ts` turns squads into rated sides,
 `sim.ts` decides results, `card.ts` explains them, `review.ts` reads the whole
 tournament back as prose, `trophy.ts` runs the invitational, `live.ts` holds the
 parts of a live draft every client works out for itself. `types.ts` holds every
-shared type — including `Opponent` — so nothing imports in a circle.
+shared type — including `Opponent` — so nothing imports in a circle. `conditions.ts`,
+`chemistry.ts`, `records.ts` and `shareCard.ts` are each one job: the weather, the
+partnerships, the season's best performances, and the picture a player posts.
 
 The SQL splits by what it owns. `schema.sql` and `archive.sql` are the cricket
 and are rebuilt wholesale; `players.sql` holds accounts and results and is never
