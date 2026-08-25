@@ -111,7 +111,7 @@ export default function DraftBoard({
     setPhase('spinning')
     setFreeReroll(!squadHasPlaceable(squad, state.slots, rules, feas))
     setState({ ...state, currentSquad: squad, dailyCursor: cursor })
-  }, [phase, state, pool, rules, feas, daily, seed, setState])
+  }, [phase, state, pool, rules, feas, daily, setState])
 
   /** Re-draw. Free when the drawn squad can't advance the draft. */
   const reroll = () => {
