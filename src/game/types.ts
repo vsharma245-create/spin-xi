@@ -316,6 +316,14 @@ export interface DraftState {
   skipsUsed: number
   /** Draws started and walked away from, counted across restarts. */
   restartsUsed: number
+  /**
+   * The number the whole sequence of squads comes out of.
+   *
+   * Draws used to be seeded off the clock, which made every draft unrepeatable
+   * — so "I went 11-3, try this draw" could not mean anything. Carrying a seed
+   * means a share can hand somebody the same eleven spins you had.
+   */
+  drawSeed: number
   dailyCursor: number
   dailyId: number | null
   captainId: string | null
@@ -498,6 +506,8 @@ export const TROPHY_ROUNDS = ['QUARTER-FINAL', 'SEMI-FINAL', 'FINAL'] as const
 export const TROPHY_QUALIFY_STANDING = 3
 
 export interface TournamentResult {
+  /** The draw this XI came out of, so a result can be re-offered as a challenge. */
+  drawSeed?: number
   format: Format
   wins: number
   losses: number

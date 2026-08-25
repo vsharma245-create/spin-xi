@@ -7,6 +7,7 @@ import { SeasonReview } from '../components/Review'
 import { SheetDrawer, TeamSheetList } from '../components/TeamSheet'
 import { Button, SectionLabel, StatCard } from '../components/ui'
 import { seasonRecords } from '../game/records'
+import { drawShareCard } from '../game/shareCard'
 import { ClaimAccount } from '../components/ClaimAccount'
 import { identity } from '../data/account'
 import { loadStats } from '../data/records'
@@ -71,6 +72,20 @@ function Trophy({ gold }: { gold: boolean }) {
 
 /* ── Share text ──────────────────────────────────────────────────────────── */
 
+/**
+ * Where a share points.
+ *
+ * The draw seed makes it playable: the same run of squads, so a score can be
+ * answered rather than admired. The settings ride along so the challenge is
+ * the same tournament on the same terms.
+ */
+function challengeLink(r: TournamentResult) {
+  const base = typeof window === 'undefined' ? 'https://www.spin-xi.com' : window.location.origin
+  if (!r.drawSeed) return base
+  const q = new URLSearchParams({ draw: String(r.drawSeed), format: r.format })
+  return `${base}/play?${q}`
+}
+
 function shareText(r: TournamentResult) {
   const t = TOURNAMENTS[r.format]
   const grid = r.matches
@@ -134,12 +149,36 @@ export default function Result({
   const headline = outcomeHeadline(result)
   const champion = result.outcome === 'CHAMPIONS'
 
+  /**
+   * Share the season.
+   *
+   * Three things travel together and each was missing. A picture, because a
+   * block of text is not something anybody posts. A link, because the share
+   * carried none at all and whoever saw it had no way back to the game. And
+   * the draw, so the link is a challenge rather than a boast — open it and you
+   * face the same eleven spins.
+   */
   const share = async () => {
-    const text = shareText(result)
+    const url = challengeLink(result)
+    const text = `${shareText(result)}\n\n${url}`
     try {
-      if (navigator.share) {
-        await navigator.share({ text, title: 'SPIN XI' })
+      const png = await drawShareCard(result)
+      const file = png && new File([png], 'spin-xi.png', { type: 'image/png' })
+      if (file && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], text, title: 'SPIN XI' })
         return
+      }
+      if (navigator.share) {
+        await navigator.share({ text, url, title: 'SPIN XI' })
+        return
+      }
+      // No share sheet: leave them the picture and the words.
+      if (png) {
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(png)
+        a.download = 'spin-xi.png'
+        a.click()
+        URL.revokeObjectURL(a.href)
       }
       await navigator.clipboard.writeText(text)
       setCopied(true)

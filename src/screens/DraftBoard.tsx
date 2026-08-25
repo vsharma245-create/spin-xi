@@ -33,6 +33,10 @@ import { OVERSEAS_LIMIT } from '../data/nations'
 
 type Phase = 'idle' | 'spinning' | 'revealed'
 
+/** The spin, as a function of the draw and how far through it we are. */
+const spinRng = (s: DraftState) =>
+  makeRng(s.drawSeed * 7919 + filledCount(s.slots) * 131 + s.skipsUsed * 17 + 3)
+
 /** Must match the reel's spin duration in SpinReel. */
 const SPIN_MS = 1800
 
@@ -93,7 +97,13 @@ export default function DraftBoard({
       squad = drawn.squad
       cursor = drawn.cursor
     } else {
-      squad = drawSquad(pool, state.slots, makeRng(Date.now() + seed * 31), state.recent, rules, feas)
+      /*
+       * Seeded off the draft rather than the clock, so the same seed always
+       * offers the same run of squads. What has been picked and re-rolled so
+       * far moves it along, so the reel still turns up something new every
+       * spin — it is only repeatable from the outside.
+       */
+      squad = drawSquad(pool, state.slots, spinRng(state), state.recent, rules, feas)
     }
 
     setTarget(squad)
@@ -120,7 +130,7 @@ export default function DraftBoard({
         squad = drawn.squad
         cursor = drawn.cursor
       } else {
-        squad = drawSquad(pool, nextState.slots, makeRng(Date.now() + seed * 97), nextState.recent, rules, feas)
+        squad = drawSquad(pool, nextState.slots, spinRng(nextState), nextState.recent, rules, feas)
       }
       setTarget(squad)
       setSeed((s) => s + 1)

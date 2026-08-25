@@ -36,6 +36,12 @@ export default function Play() {
   const isDaily = params.get('mode') === 'daily'
   const leagueCode = params.get('league')
   const formatParam = params.get('format') as Format | null
+  /*
+   * A challenge link. Somebody has shared the draw they played, and this is
+   * the number the same run of squads comes out of — so the person opening it
+   * faces the eleven spins their mate faced, and the score means something.
+   */
+  const challengeDraw = Number(params.get('draw')) || null
   const daily = useMemo(() => todaysChallenge(), [])
 
   const [phase, setPhase] = useState<Phase>(isDaily ? 'draft' : 'setup')
@@ -179,9 +185,9 @@ export default function Play() {
     setPhase('sim')
   }
 
-  const start = (config: DraftConfig, restartsUsed = 0) => {
+  const start = (config: DraftConfig, restartsUsed = 0, drawSeed?: number) => {
     beginDraft(config, 'quick')
-    setState(newDraft('quick', config, null, restartsUsed))
+    setState(newDraft('quick', config, null, restartsUsed, drawSeed))
     setPhase('draft')
   }
 
@@ -206,7 +212,9 @@ export default function Play() {
   }
 
   const finish = (r: TournamentResult) => {
-    setResult(r)
+    // The draw travels with the result, so the share can offer it on.
+    const played = { ...r, drawSeed: state?.drawSeed }
+    setResult(played)
     const took = startedAt.current ? Date.now() - startedAt.current : null
     track('draft_completed', draftId.current, {
       mode: r.mode,
@@ -218,7 +226,7 @@ export default function Play() {
     // Recorded on the server, which is where a career lives. Written after the
     // result is on screen, so a slow network never delays the reveal — and if
     // the write fails the season is lost rather than the screen.
-    void saveResult(r, {
+    void saveResult(played, {
       dailyKey: daily.dateKey,
       seed: seed ?? undefined,
       years: state?.config.years ?? null,
@@ -249,7 +257,11 @@ export default function Play() {
   return (
     <Screen>
         {phase === 'setup' && (
-          <DraftSetup key="setup" initialFormat={formatParam ?? undefined} onStart={start} />
+          <DraftSetup
+            key="setup"
+            initialFormat={formatParam ?? undefined}
+            onStart={(config) => start(config, 0, challengeDraw ?? undefined)}
+          />
         )}
 
         {phase === 'draft' && state && (

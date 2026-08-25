@@ -381,6 +381,7 @@ export function newDraft(
   config: DraftConfig,
   dailyId: number | null = null,
   restartsUsed = 0,
+  drawSeed = Math.floor(Math.random() * 2 ** 31),
 ): DraftState {
   return {
     mode,
@@ -390,6 +391,7 @@ export function newDraft(
     maxSkips: DIFFICULTY[config.difficulty].skips,
     skipsUsed: 0,
     restartsUsed,
+    drawSeed,
     dailyCursor: 0,
     dailyId,
     captainId: null,
