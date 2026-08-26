@@ -29,9 +29,14 @@ select
 from generate_series(0, 545) as slot;
 
 -- Any client holding a cached archive must fetch the new rotation.
--- The version is stamped by archive.sql, which carries the build id the static
--- snapshot was written with. Bumping it here would break that pairing and send
--- every client down the slow path.
+--
+-- The version is not touched here, and must not be. It is the build id that
+-- archive.sql and the static snapshot are stamped with, and it pairs the two:
+-- a client whose cached copy carries that id knows it is current. Randomising
+-- it on a rotation change unpairs them, so every client that ever falls back
+-- to the database is told its archive is stale and reads all forty-three
+-- pages again to be handed the same rows. The rotation itself is fetched live
+-- on every load, so it needs no cache-busting of its own.
 update dataset_meta set updated_at = now();
 
 commit;
