@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Ad } from '../components/Ad'
+import { SLOT } from '../components/ads'
 import { Explainer, Screen, SectionLabel } from '../components/ui'
 import { dailyEntrants, loadBoard, loadDaily, loadStats, startOfToday } from '../data/records'
 import type { LadderRow } from '../data/records'
@@ -260,6 +262,8 @@ export default function Leaderboard() {
             : `Play a ${TOURNAMENTS[format].name} to take your place on this ladder.`}
         </p>
       )}
+
+      <Ad slot={SLOT.leaderboard} shape="banner" />
 
       <Explainer title="how ranking works">
         <>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { adsEnabled } from '../components/ads'
 import { Link } from 'react-router-dom'
 import { Screen } from '../components/ui'
 
@@ -95,16 +96,56 @@ export function Privacy() {
       <section>
         <H>What we do not collect</H>
         <p>
-          There is no analytics package, no advertising, no tracking pixel and no third-party
-          script running on this site. We do not collect your name, your location, your device
-          identifiers or your browsing behaviour, and we have never sold or shared data with anyone
-          for marketing.
+          We do not collect your name, your location or your device identifiers, we run no
+          analytics package of our own, and we have never sold your data to anyone.
         </p>
         <p className="mt-3">
-          One third party does see your request: the game loads its typefaces from Google Fonts,
-          which receives your IP address as part of serving them. Nothing about your account or
-          your results is sent with it.
+          One third party sees your request whether or not you do anything: the game loads its
+          typefaces from Google Fonts, which receives your IP address as part of serving them.
+          Nothing about your account or your results is sent with it.
         </p>
+        {/* Written from the same switch that decides whether an ad is served,
+            so this page cannot promise one thing while the site does another. */}
+        {adsEnabled ? (
+          <>
+            <p className="mt-3">
+              <span className="text-cream">This site carries advertising.</span> Ads are served by
+              Google AdSense, which is what pays for the archive, the database and the domain. To
+              serve them, Google receives your IP address and information about the page you are
+              on, and may set cookies on your device to measure and to choose what to show you.
+              That happens inside Google&rsquo;s systems and under its own policies, not ours: we
+              are not given your identity, and nothing about your account, your squads or your
+              results is passed to it.
+            </p>
+            <p className="mt-3">
+              You can see and change what Google does with this at{' '}
+              <a
+                href="https://myadcenter.google.com/"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline hover:text-cream-dim"
+              >
+                My Ad Center
+              </a>
+              , and read how it handles data on advertising partners&rsquo; sites at{' '}
+              <a
+                href="https://policies.google.com/technologies/partner-sites"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline hover:text-cream-dim"
+              >
+                policies.google.com
+              </a>
+              . Where the law requires your consent first — the EU, the UK and Switzerland — you
+              are asked before any of it happens, and you can change that answer at any time.
+            </p>
+          </>
+        ) : (
+          <p className="mt-3">
+            There is no advertising, no tracking pixel and no other third-party script running on
+            this site.
+          </p>
+        )}
       </section>
 
       <section>

@@ -2,6 +2,8 @@ import { motion } from 'framer-motion'
 import { useMemo, useState } from 'react'
 import { Field } from '../components/Field'
 import { LeagueTable } from '../components/LeagueTable'
+import { Ad } from '../components/Ad'
+import { SLOT } from '../components/ads'
 import LiveMatch from '../components/LiveMatch'
 import { MatchDrawer, MatchRow } from '../components/MatchView'
 import { SeasonReview } from '../components/Review'
@@ -450,6 +452,10 @@ export default function Result({
           </div>
         </div>
       )}
+
+      {/* Between the reading and the re-reading. The season is over, nothing is
+          waiting on a tap, and no part of the game is behind it. */}
+      <Ad slot={SLOT.result} shape="banner" />
 
       {/* ── Full scorecard ── */}
       <div className="mt-9">

@@ -1,4 +1,6 @@
 import { motion } from 'framer-motion'
+import { Ad } from '../components/Ad'
+import { SLOT } from '../components/ads'
 import { Link } from 'react-router-dom'
 import { Button, Divider, FeatureCard, Screen, SectionLabel } from '../components/ui'
 import { Logo } from '../components/Nav'
@@ -190,6 +192,8 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      <Ad slot={SLOT.home} shape="banner" />
 
       {/* ── Footer ── */}
       <footer className="mt-12 border-t border-white/[0.06] pt-5 text-center">

@@ -534,6 +534,43 @@ figures across formats, where a strike rate of 60 is a fine Test innings and a
 dreadful T20 one; and it called "conceded runs off no legal delivery" impossible,
 which an over of wides does perfectly legally.
 
+## Paying for itself
+
+The site can carry advertising, and carries none unless it is told to. With
+`VITE_ADSENSE_CLIENT` unset — which is how it ships — no slot renders, no script
+is fetched, no `ads.txt` is written, and the privacy policy says in as many words
+that there is no advertising on the site. Set the publisher id and the ad unit
+ids and the slots appear; the policy text switches with the same flag, so the
+page cannot promise one thing while the site does another.
+
+Three rules shape where and how.
+
+**Never on the critical path.** The archive already costs about a second on a
+cold load, and getting that down from sixteen was most of a day's work; a
+blocking script from an ad network hands it straight back. The library is not
+requested until a slot is within about a screen and a half of being seen, and
+never before the game is up. A blocked or failed script is not an error — the
+game does not need it.
+
+**Never in the middle of the game.** Slots exist on the result screen, the home
+page below the fold, and the ladder. There is none on the draft board, the spin,
+the live match or a multiplayer room, and that is deliberate: those are the game,
+and an advert in the middle of one is a reason to stop playing.
+
+**Never a hole in the page.** Each slot reserves its height before anything
+fills it, so nothing shifts under a thumb, and an unfilled slot gives the space
+back instead of leaving a labelled empty box.
+
+```
+VITE_ADSENSE_CLIENT=ca-pub-…      # publisher id; unset means no advertising
+VITE_AD_SLOT_RESULT=…             # any slot left blank stays empty
+VITE_AD_SLOT_HOME=…
+VITE_AD_SLOT_LEADERBOARD=…
+```
+
+Consent, where the law requires it, is handled by Google's own privacy messaging
+in the AdSense dashboard rather than by anything in this repository.
+
 ## Playing against people
 
 Two modes, different in kind rather than in degree.
