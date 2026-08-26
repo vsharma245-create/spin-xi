@@ -329,6 +329,33 @@ language sql security definer stable set search_path = public as $$
   select exists (select 1 from draft_seats s where s.room_id = d and s.player = auth.uid())
 $$;
 
+/**
+ * The whole room in one round trip.
+ *
+ * The client used to ask three questions a second — the room, the seats, the
+ * picks — and write a heartbeat alongside them, so a single open tab was four
+ * requests a second and a single abandoned one was four a second forever. On a
+ * shared instance that is not a draft, it is a load test.
+ *
+ * One call now answers all three. Security definer for the same reason the
+ * seats policy is: `in_draft` already decides who may look, and it is checked
+ * here rather than three times over.
+ */
+create or replace function draft_state(join_code text)
+returns jsonb
+language sql security definer set search_path = public stable as $$
+  select case when d.id is null or not in_draft(d.id) then null else jsonb_build_object(
+    'room',  to_jsonb(d),
+    'seats', coalesce((
+      select jsonb_agg(to_jsonb(s) order by s.seat)
+      from draft_seats s where s.room_id = d.id), '[]'::jsonb),
+    'picks', coalesce((
+      select jsonb_agg(to_jsonb(k) order by k.pick_no)
+      from draft_picks k where k.room_id = d.id), '[]'::jsonb)
+  ) end
+  from draft_rooms d where d.code = lower(join_code);
+$$;
+
 drop policy if exists "rooms visible to players" on draft_rooms;
 drop policy if exists "own room insert"          on draft_rooms;
 drop policy if exists "host may update room"     on draft_rooms;

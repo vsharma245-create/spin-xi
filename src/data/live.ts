@@ -122,13 +122,60 @@ export async function loadRoom(code: string): Promise<Room | null> {
   return found ?? null
 }
 
+/** Room, seats and picks, as one answer. */
+export interface RoomState {
+  room: Room
+  seats: Seat[]
+  picks: Pick[]
+}
+
+/**
+ * Everything the draft screen needs, in one request.
+ *
+ * It used to be three every second, plus a heartbeat — four requests a second
+ * per open tab, and the tab did not have to be doing anything. This is the
+ * same information for a quarter of the traffic and a quarter of the work at
+ * the other end.
+ */
+export async function loadState(code: string): Promise<RoomState | null> {
+  try {
+    const found = await api<RoomState | null>('rpc/draft_state', {
+      method: 'POST',
+      body: JSON.stringify({ join_code: code.toLowerCase() }),
+    })
+    if (found?.room) return found
+    // A room that exists but is not ours reads as nothing, same as no room.
+    if (found === null) return null
+  } catch {
+    /*
+     * The function is not there yet.
+     *
+     * The client and the database are deployed by separate hands, and a build
+     * that reaches players before `npm run db:push` does would otherwise take
+     * every live draft down with it. Three requests is what this used to cost
+     * every second; paying it until the schema catches up is nothing.
+     */
+  }
+  const room = await loadRoom(code)
+  if (!room) return null
+  const [seats, picks] = await Promise.all([loadSeats(room.id), loadPicks(room.id)])
+  return { room, seats, picks }
+}
+
 export const loadSeats = (roomId: string) =>
   api<Seat[]>(`draft_seats?select=*&room_id=eq.${roomId}&order=seat`)
 
 export const loadPicks = (roomId: string) =>
   api<Pick[]>(`draft_picks?select=*&room_id=eq.${roomId}&order=pick_no`)
 
-/** Say you are still here. A seat that stops saying so is taken over. */
+/**
+ * Say you are still here.
+ *
+ * Called when you take a seat and not on a timer. It used to fire every second
+ * from the poll loop — an UPDATE per player per second, write-ahead log and
+ * vacuum included — and nothing anywhere read the column it set. A seat is
+ * given up explicitly, by leaving, which is what `leaveSeat` is for.
+ */
 export async function heartbeat(roomId: string, seat: number): Promise<void> {
   await api(`draft_seats?room_id=eq.${roomId}&seat=eq.${seat}`, {
     method: 'PATCH',

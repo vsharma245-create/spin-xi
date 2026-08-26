@@ -5,18 +5,15 @@ import { PlayerCard } from '../components/PlayerCard'
 import { signIn } from '../data/account'
 import {
   abandonRoom,
-  begin,
-  heartbeat,
-  leaveSeat,
   advance,
+  begin,
+  leaveSeat,
   loadDraftTable,
-  loadPicks,
-  loadRoom,
-  loadSeats,
+  loadState,
   makePick,
   previewRoom,
-  sayReady,
   saveSeatSeason,
+  sayReady,
   sit,
 } from '../data/live'
 import type { DraftRow, Pick, Room, Seat } from '../data/live'
@@ -44,11 +41,26 @@ import type { DraftConfig } from '../game/types'
  * every render. Two clients cannot drift apart over something neither of them
  * is keeping.
  *
- * Polled rather than pushed. A turn is thirty seconds and a room is four
- * people, so a request a second is plenty and costs nothing but a request a
- * second — where a socket would cost a dependency and a reconnection story.
+ * Polled rather than pushed, because a socket would cost a dependency and a
+ * reconnection story where a turn is thirty seconds long.
+ *
+ * What a poll costs is the whole question, and the first version got it wrong.
+ * It asked three questions a second — room, seats, picks — and wrote a
+ * heartbeat alongside them, so one open tab was four requests a second and one
+ * *abandoned* tab was four requests a second for as long as it stayed open.
+ * Nothing stopped it: not the draft finishing, not the room being abandoned,
+ * not the tab being buried behind twelve others. A single forgotten tab was
+ * three hundred thousand requests and eighty thousand writes a day, and the
+ * database it was pointed at is shared.
+ *
+ * It is now one request, it slows down when nothing is happening, and it stops
+ * altogether when there is nothing to watch.
  */
+
+/** While turns are running and somebody is watching. */
 const POLL_MS = 1000
+/** In the lobby or the review window, where seconds do not matter. */
+const IDLE_MS = 3000
 
 export default function LiveDraft() {
   const { code = '' } = useParams()
@@ -83,8 +95,13 @@ export default function LiveDraft() {
         const seat = await sit(code).catch(() => null)
         if (!live) return
         if (seat !== null) setMySeat(Number(seat))
-        const r = await loadRoom(code)
-        if (live && r) setRoom(r)
+        // The same one call the poll uses, so joining costs one request too.
+        const state = await loadState(code)
+        if (live && state) {
+          setRoom(state.room)
+          setSeats(state.seats)
+          setPicks(state.picks)
+        }
       } catch (err) {
         if (live) setError((err as Error).message)
       }
@@ -96,12 +113,11 @@ export default function LiveDraft() {
 
   /* ── Reading the room ── */
   const refresh = useCallback(async () => {
-    const r = await loadRoom(code)
-    if (!r) return
-    setRoom(r)
-    const [s, p] = await Promise.all([loadSeats(r.id), loadPicks(r.id)])
-    setSeats(s)
-    setPicks(p)
+    const state = await loadState(code)
+    if (!state) return
+    setRoom(state.room)
+    setSeats(state.seats)
+    setPicks(state.picks)
   }, [code])
 
   /*
@@ -112,15 +128,35 @@ export default function LiveDraft() {
    * poll. The id is the thing that actually changes when the room does.
    */
   const roomId = room?.id
+  const status = room?.status
+  /*
+   * A finished room has nothing left to say, and neither does a hidden tab.
+   * These two conditions are the whole fix: between them they take an
+   * abandoned draft from four requests a second, forever, to none.
+   */
+  const settled = status === 'done' || status === 'abandoned'
+  const [watching, setWatching] = useState(() => !document.hidden)
+
   useEffect(() => {
-    if (!roomId) return
+    const seen = () => setWatching(!document.hidden)
+    document.addEventListener('visibilitychange', seen)
+    return () => document.removeEventListener('visibilitychange', seen)
+  }, [])
+
+  // Coming back to the tab should not wait out a poll interval.
+  useEffect(() => {
+    if (watching && roomId && !settled) void refresh()
+  }, [watching, roomId, settled, refresh])
+
+  useEffect(() => {
+    if (!roomId || settled || !watching) return
+    const every = status === 'drafting' ? POLL_MS : IDLE_MS
     const id = setInterval(() => {
       void refresh()
       setTick((n) => n + 1)
-      if (mySeat !== null) void heartbeat(roomId, mySeat)
-    }, POLL_MS)
+    }, every)
     return () => clearInterval(id)
-  }, [roomId, mySeat, refresh])
+  }, [roomId, status, settled, watching, refresh])
 
   /* ── Everything else is derived ── */
   const config: DraftConfig | null = useMemo(
