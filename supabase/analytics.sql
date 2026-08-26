@@ -49,19 +49,8 @@ create table if not exists events (
   id       bigint generated always as identity primary key,
   player   uuid not null references profiles (id) on delete cascade,
 
-  name     text not null check (name in (
-             'draft_started',
-             'draft_abandoned',
-             'draft_completed',
-             'season_simulated',
-             'account_claimed',
-             'handle_changed',
-             -- A season sent somewhere, and a season arrived at from one. Both
-             -- halves, because a share nobody opens is not growth and an
-             -- arrival with nothing sent cannot be attributed to anything.
-             'result_shared',
-             'challenge_opened'
-           )),
+  -- Which names are allowed is settled below, not here. See the note there.
+  name     text not null,
 
   -- Which draft this belonged to, so a started and an abandoned row can be
   -- matched up without guessing from timestamps.
@@ -78,6 +67,44 @@ create table if not exists events (
 create index if not exists events_player_idx on events (player, created_at desc);
 create index if not exists events_name_idx   on events (name, created_at desc);
 create index if not exists events_draft_idx  on events (draft_id) where draft_id is not null;
+
+/*
+ * The permitted event names, dropped and re-added on every push.
+ *
+ * They used to live in the `create table if not exists` above, which does
+ * exactly nothing when the table is already there — constraint included. So
+ * adding a name to that list changed nothing on any database that had ever
+ * been pushed to before, and the client sending the new name got a 23514 back
+ * for its trouble. This is the only version of it that is actually applied.
+ *
+ * The old constraint is found by what it says rather than by what it is
+ * called, because Postgres named it itself the first time.
+ */
+do $$
+declare c text;
+begin
+  for c in
+    select conname from pg_constraint
+    where conrelid = 'events'::regclass and contype = 'c'
+      and pg_get_constraintdef(oid) like '%draft_started%'
+  loop
+    execute format('alter table events drop constraint %I', c);
+  end loop;
+end $$;
+
+alter table events add constraint events_name_check check (name in (
+  'draft_started',
+  'draft_abandoned',
+  'draft_completed',
+  'season_simulated',
+  'account_claimed',
+  'handle_changed',
+  -- A season sent somewhere, and a season arrived at from one. Both halves,
+  -- because a share nobody opens is not growth and an arrival with nothing
+  -- sent cannot be attributed to anything.
+  'result_shared',
+  'challenge_opened'
+));
 
 alter table events enable row level security;
 
