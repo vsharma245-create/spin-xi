@@ -226,8 +226,23 @@ create trigger squads_bump         after insert or update or delete on squads
   for each statement execute function bump_dataset_version();
 create trigger squad_players_bump  after insert or update or delete on squad_players
   for each statement execute function bump_dataset_version();
-create trigger challenges_bump     after insert or update or delete on challenges
-  for each statement execute function bump_dataset_version();
+/*
+ * The challenges table deliberately has no such trigger.
+ *
+ * The other four hold the archive, and a change to any of them genuinely means
+ * every cached copy is out of date. The daily rotation is not part of the
+ * archive: it is fetched live on every load and needs no cache-busting.
+ *
+ * Worse, it cannot have one. The version is the build id that archive.sql and
+ * public/archive.json are both stamped with, and it is what pairs them — a
+ * client whose cached copy carries that id knows it is current. db:push runs
+ * archive.sql, which stamps the id, and then challenges.sql, which rebuilds
+ * the rotation; with a trigger here that rebuild fired last and replaced the
+ * id with a random one. Every push left the database claiming an archive
+ * version that existed nowhere, so any client falling back to the database was
+ * told its copy was stale and re-read all forty-three pages to be handed
+ * exactly the rows it already had.
+ */
 
 /* ── Reads ─────────────────────────────────────────────────────────────── */
 
