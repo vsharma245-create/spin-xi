@@ -26,7 +26,8 @@
     "draft:check": "esbuild scripts/draft-probe.ts --bundle --platform=node --format=esm --outfile=.draft-probe.mjs --external:@electric-sql/pglite --log-level=error && node .draft-probe.mjs; rm -f .draft-probe.mjs",
     "live:prod": "esbuild scripts/two-client-probe.ts --bundle --platform=node --format=esm --outfile=.two-client.mjs --external:@electric-sql/pglite --log-level=error && node .two-client.mjs; rm -f .two-client.mjs",
     "audit": "node scripts/audit.mjs",
-    "rows:check": "esbuild scripts/row-probe.ts --bundle --platform=node --format=esm --outfile=.row-probe.mjs --external:@electric-sql/pglite --log-level=error && node .row-probe.mjs; rm -f .row-probe.mjs"
+    "rows:check": "esbuild scripts/row-probe.ts --bundle --platform=node --format=esm --outfile=.row-probe.mjs --external:@electric-sql/pglite --log-level=error && node .row-probe.mjs; rm -f .row-probe.mjs",
+    "play:check": "esbuild scripts/playback-probe.ts --bundle --platform=node --format=esm --outfile=.play-probe.mjs --external:@electric-sql/pglite --log-level=error && node .play-probe.mjs; rm -f .play-probe.mjs"
   },
   "dependencies": {
     "framer-motion": "^11.18.2",

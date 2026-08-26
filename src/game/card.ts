@@ -26,6 +26,8 @@ const OUT_TYPES = ['b', 'lbw', 'c keeper', 'c mid-off', 'c deep', 'run out', 'st
 const pick = <T,>(list: T[], rand: () => number) => list[Math.floor(rand() * list.length)]
 
 /** Strike rate and over allocation differ wildly by format. */
+import { reconcile } from './playback'
+
 const TEMPO: Record<Format, { sr: number; overs: number; quota: number }> = {
   T20L: { sr: 142, overs: 20, quota: 4 },
   T20WC: { sr: 136, overs: 20, quota: 4 },
@@ -109,7 +111,15 @@ function battingCard(
   const extras = Math.max(0, Math.round(runs * (0.02 + rand() * 0.05)))
   const offBat = Math.max(0, runs - extras)
 
-  const runsBy = share(offBat, batters.map((p) => bonus(p) * form()), rand)
+  /*
+   * A shade more of the total goes to the men who bat late, in the shorter
+   * games only. Sharing on batting rating alone left the last four overs to
+   * batters who between them had been given fifteen runs, so the death of a
+   * T20 innings — the part everyone stays up for — was the quietest passage
+   * of the match. A finisher is picked to make thirty off twelve.
+   */
+  const finisher = (i: number) => (format === 'TEST' ? 1 : 1 + i * 0.07)
+  const runsBy = share(offBat, batters.map((p, i) => bonus(p) * finisher(i) * form()), rand)
   const sr = TEMPO[format].sr
 
   /**
@@ -120,8 +130,20 @@ function battingCard(
    * than something asserted and left to contradict the total.
    */
   const wanted = runsBy.map((r, i) => {
+    /*
+     * Batting position is a tempo, not just an order.
+     *
+     * Deciding a batter's rate from his rating alone gave the whole order the
+     * same strike rate, so the men who walk out in the seventeenth over used
+     * as many deliveries per run as the openers. The innings that came out of
+     * it ran backwards: a powerplay at eleven an over and a death at five,
+     * because the last thirty balls belonged to the batters with the fewest
+     * runs between them. Whoever comes in late comes in with the field back
+     * and the clock going, and bats accordingly.
+     */
+    const late = format === 'TEST' ? 1 : 1 + i * 0.17
     const rate =
-      sr * (0.7 + (batters[i].bat / 100) * 0.6) * tempoOf(batters[i]) * (0.8 + rand() * 0.5)
+      sr * (0.7 + (batters[i].bat / 100) * 0.6) * tempoOf(batters[i]) * late * (0.8 + rand() * 0.5)
     return Math.max(1, (r / rate) * 100)
   })
   const wantedSum = wanted.reduce((a, b) => a + b, 0)
@@ -601,5 +623,5 @@ export function buildCard(o: {
     theirSquad: `${o.opponent.short} ${o.opponent.season}`,
   }
 
-  return { card, hero }
+  return { card: reconcile(card), hero }
 }

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { useMemo, useState } from 'react'
 import { Field } from '../components/Field'
 import { LeagueTable } from '../components/LeagueTable'
+import LiveMatch from '../components/LiveMatch'
 import { MatchDrawer, MatchRow } from '../components/MatchView'
 import { SeasonReview } from '../components/Review'
 import { SheetDrawer, TeamSheetList } from '../components/TeamSheet'
@@ -137,6 +138,8 @@ export default function Result({
   const [xiOpen, setXiOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [openMatch, setOpenMatch] = useState<MatchResult | null>(null)
+  /** Any match of the season, played back rather than read. */
+  const [live, setLive] = useState<MatchResult | null>(null)
   // Read back off the scorecards that were already generated, so this costs
   // nothing beyond the walk and cannot disagree with the match log below it.
   const records = useMemo(
@@ -187,6 +190,18 @@ export default function Result({
       /* user dismissed the share sheet — nothing to do */
     }
   }
+
+  if (live)
+    return (
+      <div className="py-6">
+        <LiveMatch
+          match={live}
+          teamName={result.teamName}
+          format={result.format}
+          onDone={() => setLive(null)}
+        />
+      </div>
+    )
 
   return (
     <div className="relative pb-10">
@@ -452,6 +467,10 @@ export default function Result({
         match={openMatch}
         teamName={result.teamName}
         onClose={() => setOpenMatch(null)}
+        onWatch={(m) => {
+          setOpenMatch(null)
+          setLive(m)
+        }}
       />
 
       <SheetDrawer open={xiOpen} onClose={() => setXiOpen(false)} title="Your XI">

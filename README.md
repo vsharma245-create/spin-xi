@@ -196,9 +196,47 @@ was the one that got him — eleven dismissals against ten wickets, because the 
 stranded at the other end was given an entry too, and 4.4 overs in a twenty-over
 game.
 
-Tap any match — mid-simulation from the live feed, or afterwards from the match
-log — to read it back. The simulation runs at 1×, 2× or skip-to-end, can be
-paused, and narrates each result in words as it lands.
+### The match is played, not announced
+
+A knockout used to resolve on the click. You chose to bat, and the result was
+already on the screen — so the final of a tournament took less time to play than
+a single group game took to animate, which is what people meant when they said
+the simulation was over before it started.
+
+Every match can now be **watched, ball by ball**. The scoreboard climbs, the
+strike rotates, wickets land and hold the screen, and a chase counts down what
+is needed off how many. It runs at 1×, 2× or 4×, pauses, and skips — a T20
+takes about ninety seconds if you sit through all of it. Knockouts and Champions
+Trophy ties play out this way by default; any league match can be replayed on
+demand, from the live feed during the season or from the match log afterwards.
+
+**None of it is invented.** The replay is reconstructed from the finished card
+and from nothing else. A card only ever dismisses batters in the order it lists
+them, so the balls each of them faced are enough to recover every partnership:
+the first two are together until the first falls, then the second and the third,
+and so on down. Each delivery is drawn against the rate still required — what is
+left, over what is left to face — which is why a batter plays himself in and then
+cashes in, and why the last over of a chase is the last over of a chase.
+
+Because it is derived rather than stored, a shared result replays the same
+innings for whoever opens it, days later, from the card alone. Not one ball is
+saved anywhere.
+
+**The bowling card is read off the replay.** Runs used to be shared among the
+attack in inverse proportion to how good they were, and wickets drawn from a
+skewed curve, so nobody's four-for belonged to any particular over. Now the man
+who bowled the eighteenth is the man who went for sixteen in it. The overs each
+of them sends down are still the card's, because that is where the quotas and
+the conditions live.
+
+`npm run play:check` replays every innings of sixteen hundred matches — about 1.4
+million deliveries — and checks that the innings coming out is the one that went
+in: every batter's exact score and balls faced, the wickets in order and off the
+right end, the extras to the run, the bowling figures, and no batter scoring off
+the ball that dismissed him. It also holds the shape to account, because a
+correct innings can still be a wrong one: it caught a powerplay going at eleven
+an over and a death at five, four wickets in a single over, twelve leg byes off
+one delivery, and a five off the bat every three overs.
 
 **Nothing happens without being explained.** The league stage ends on the final
 table, with your position, the qualification cut and what comes next spelled
@@ -443,6 +481,7 @@ npm run audit        # is the cricket right? rates, distributions, outliers
 npm run rows:check   # all 42,165 roster rows, 19 rules each, failures printed
 npm run data:check   # the questions only the whole archive can answer
 npm run cards:check  # a thousand scorecards, hunting for impossible cricket
+npm run play:check   # 1.4m deliveries replayed, checked against the cards
 npm run combos:check # every draft setting, checked for actually doing it
 npm run draft:check  # 2,600 drafts across every crossing of every filter
 npm run db:check     # the SQL against a real Postgres — and as a non-owner

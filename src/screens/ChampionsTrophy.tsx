@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { PitchIcon } from '../components/icons'
 import { useMemo, useState } from 'react'
+import LiveMatch from '../components/LiveMatch'
 import { MatchDrawer, MatchRow } from '../components/MatchView'
 import { Button, SectionLabel } from '../components/ui'
 import { attackOf, favoursBatting, ordinal } from '../game/sim'
@@ -32,6 +33,8 @@ export default function ChampionsTrophy({
   const [seed, setSeed] = useState(0)
   const [run, setRun] = useState<TrophyRun>(() => newTrophyRun(Math.random, result.ratingMode))
   const [open, setOpen] = useState<MatchResult | null>(null)
+  /** The tie being watched. A knockout that resolves on the click is not a tie. */
+  const [live, setLive] = useState<MatchResult | null>(null)
   const [recorded, setRecorded] = useState(false)
   /** The toss for the tie about to be played, rolled once per round. */
   const [tossWon, setTossWon] = useState(() => Math.random() < 0.5)
@@ -51,6 +54,7 @@ export default function ChampionsTrophy({
     const next = { ...run, ties: [...run.ties] }
     playTrophyTie(next, ratings, xi, attack, Math.random, { won: tossWon, batFirst })
     setRun(next)
+    setLive(next.ties[next.ties.length - 1]?.match ?? null)
     setTossWon(Math.random() < 0.5)
     if (trophyOver(next) && !recorded) {
       setRecorded(true)
@@ -64,6 +68,18 @@ export default function ChampionsTrophy({
       }).catch(() => {})
     }
   }
+
+  if (live)
+    return (
+      <div className="py-6">
+        <LiveMatch
+          match={live}
+          teamName={teamName}
+          format="T20L"
+          onDone={() => setLive(null)}
+        />
+      </div>
+    )
 
   return (
     <div className="pb-10">
@@ -261,7 +277,15 @@ export default function ChampionsTrophy({
         </div>
       )}
 
-      <MatchDrawer match={open} teamName={teamName} onClose={() => setOpen(null)} />
+      <MatchDrawer
+        match={open}
+        teamName={teamName}
+        onClose={() => setOpen(null)}
+        onWatch={(m) => {
+          setOpen(null)
+          setLive(m)
+        }}
+      />
     </div>
   )
 }

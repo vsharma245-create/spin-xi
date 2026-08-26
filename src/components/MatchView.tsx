@@ -370,10 +370,13 @@ export function MatchDrawer({
   match,
   teamName,
   onClose,
+  onWatch,
 }: {
   match: MatchResult | null
   teamName: string
   onClose: () => void
+  /** Offered where the match can be replayed rather than only read. */
+  onWatch?: (match: MatchResult) => void
 }) {
   return (
     <SheetDrawer
@@ -381,6 +384,14 @@ export function MatchDrawer({
       onClose={onClose}
       title={match ? (match.knockout ? match.round : `${match.round} · ${match.opponent}`) : ''}
     >
+      {match && onWatch && (
+        <button
+          onClick={() => onWatch(match)}
+          className="mb-3 w-full rounded-xl border border-willow/35 bg-willow/[0.08] px-3 py-2.5 text-[11.5px] font-black uppercase tracking-label text-willow hover:bg-willow/15"
+        >
+          ▶ watch this match ball by ball
+        </button>
+      )}
       {match && <MatchCardView match={match} teamName={teamName} />}
     </SheetDrawer>
   )

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { PitchIcon, TeamCrest } from '../components/icons'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LeagueTable } from '../components/LeagueTable'
+import LiveMatch from '../components/LiveMatch'
 import { MatchDrawer, MatchRow } from '../components/MatchView'
 import { starsOf } from '../game/opponents'
 import { Button, Pill } from '../components/ui'
@@ -18,7 +19,49 @@ const STAGES = ['BUILDING XI', 'ANALYSING BATTING', 'ANALYSING BOWLING', 'READIN
  * and what is about to: the league ends on a table, and every knockout is
  * introduced with the opponent and what is at stake.
  */
-type Phase = 'analysis' | 'group' | 'standings' | 'intro' | 'toss' | 'reveal' | 'wrap'
+type Phase = 'analysis' | 'group' | 'standings' | 'intro' | 'toss' | 'live' | 'reveal' | 'wrap'
+
+/**
+ * A number that arrives rather than appears.
+ *
+ * The league used to deal each result out fully formed, which is what made
+ * fourteen matches feel like fourteen cards being turned over instead of
+ * fourteen games being played. Letting the totals run up to themselves is
+ * enough to read as cricket happening, in the second or so a montage can
+ * afford to give each match.
+ */
+function Climb({ to, ms = 620 }: { to: number; ms?: number }) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    let frame = 0
+    const from = performance.now()
+    const step = (now: number) => {
+      const f = Math.min(1, (now - from) / ms)
+      setN(Math.round(to * (1 - Math.pow(1 - f, 3))))
+      if (f < 1) frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    // Animation frames stop in a hidden tab while the league ticker does not,
+    // so a player who looks away comes back to a row of nought-for-nought.
+    // The timer lands the figure whether or not a frame ever ran.
+    const settle = window.setTimeout(() => setN(to), ms + 90)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(settle)
+    }
+  }, [to, ms])
+  return <>{n}</>
+}
+
+/**
+ * "173/7" as it is written on the card — or null, for the Tests, where the
+ * line reads "334 & 180" and there is no single total to run up.
+ */
+const scoreParts = (s: string) => {
+  if (!s.includes('/')) return null
+  const [runs, wickets] = s.split('/')
+  return Number.isFinite(Number(runs)) ? { runs: Number(runs), wickets: wickets ?? '' } : null
+}
 
 /** Watching pace. 0 plays the rest of the group out at once. */
 const SPEEDS = [
@@ -64,6 +107,8 @@ export default function Simulation({
   const [call, setCall] = useState<'HEADS' | 'TAILS' | null>(null)
   const [tossWon, setTossWon] = useState<boolean | null>(null)
   const [open, setOpen] = useState<MatchResult | null>(null)
+  /** A match the player asked to sit through, rather than read afterwards. */
+  const [watch, setWatch] = useState<MatchResult | null>(null)
 
   const koIndex = koShown.length
   const spec = run.rounds[koIndex]
@@ -91,7 +136,7 @@ export default function Simulation({
       setShown(run.group.length)
       return
     }
-    const id = window.setTimeout(() => setShown((n) => n + 1), 780 / speed)
+    const id = window.setTimeout(() => setShown((n) => n + 1), 1150 / speed)
     return () => window.clearTimeout(id)
   }, [phase, shown, paused, speed, run.group.length, run.qualified])
 
@@ -100,7 +145,8 @@ export default function Simulation({
     (toss: { won: boolean; batFirst: boolean } | null) => {
       const m = playKnockout(run, config.format, randRef.current, toss)
       setKoShown((prev) => [...prev, m])
-      setPhase('reveal')
+      // The result is already decided. Watching it happen is the point.
+      setPhase('live')
     },
     [run, config.format],
   )
@@ -138,12 +184,39 @@ export default function Simulation({
     window.setTimeout(() => setTossWon(won), 700)
   }
 
+  const lastPlayed = koShown[koShown.length - 1]
+  if (watch)
+    return (
+      <div className="py-6">
+        <LiveMatch
+          match={watch}
+          teamName={teamName}
+          format={config.format}
+          onDone={() => {
+            setWatch(null)
+            setPaused(false)
+          }}
+        />
+      </div>
+    )
+  if (phase === 'live' && lastPlayed)
+    return (
+      <div className="py-6">
+        <LiveMatch
+          match={lastPlayed}
+          teamName={teamName}
+          format={config.format}
+          onDone={() => setPhase('reveal')}
+        />
+      </div>
+    )
+
   const played = run.group.slice(0, shown)
   const w = played.filter((m) => m.outcome === 'W').length
   const d = played.filter((m) => m.outcome === 'D').length
   const l = played.filter((m) => m.outcome === 'L').length
   const feed = [...koShown].reverse().concat([...played].reverse())
-  const lastKo = koShown[koShown.length - 1]
+  const lastKo = lastPlayed
   const cutoff = qualifyCutoff(config.format)
 
   return (
@@ -280,10 +353,37 @@ export default function Simulation({
               <div className={`display text-[15px] leading-none ${skin.text}`}>
                 {skin.word}
                 <span className="ml-1.5 text-[11.5px] font-bold tracking-normal text-cream-dim">
-                  {last.outcome === 'D' ? '' : `by ${last.margin}`}
+                  {/* The margin already reads "by 39 runs", so prefixing it
+                      again put "WON by by 39 runs" on the ticker. */}
+                  {last.outcome === 'D' ? '' : last.margin}
                 </span>
               </div>
-              <div className="mt-1 truncate text-[10.5px] leading-snug text-moss">
+              {/* The scoreline, running up as though the match were being
+                  played, because from here it is the only thing that says one
+                  was. */}
+              <div className="tnum mt-0.5 text-[12px] font-bold text-cream-dim">
+                {[last.us, last.them].map((side, i) => {
+                  const part = scoreParts(side)
+                  return (
+                    <span key={i}>
+                      {i > 0 && (
+                        <span className="mx-1.5 text-[9.5px] font-black uppercase tracking-label text-moss">
+                          v
+                        </span>
+                      )}
+                      {part ? (
+                        <>
+                          <Climb to={part.runs} />
+                          <span className="text-[10px] text-moss">/{part.wickets}</span>
+                        </>
+                      ) : (
+                        side
+                      )}
+                    </span>
+                  )
+                })}
+              </div>
+              <div className="mt-0.5 truncate text-[10.5px] leading-snug text-moss">
                 v {last.opponent} · {last.card.summary.split(' · ').slice(-1)[0]}
               </div>
             </div>
@@ -579,7 +679,16 @@ export default function Simulation({
         )}
       </div>
 
-      <MatchDrawer match={open} teamName={teamName} onClose={() => setOpen(null)} />
+      <MatchDrawer
+        match={open}
+        teamName={teamName}
+        onClose={() => setOpen(null)}
+        onWatch={(m) => {
+          setOpen(null)
+          setPaused(true)
+          setWatch(m)
+        }}
+      />
     </div>
   )
 }
