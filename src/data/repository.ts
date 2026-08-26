@@ -92,8 +92,18 @@ const PAGE = 1000
  * forty-three, and counting a four-table view is what tipped the database into
  * cancelling statements under load.
  */
+/*
+ * The materialized copy where there is one, the view where there is not.
+ *
+ * The client and the database are pushed by separate hands. A build that
+ * reaches players before `npm run db:push` does would otherwise ask for a
+ * relation that is not there yet and turn a rare fallback into a certain
+ * error — decided once per load, not once per page.
+ */
+let source: 'roster_pages' | 'roster_feed' = 'roster_pages'
+
 const page = (from: number) =>
-  rest<RosterRow[]>(`roster_pages?select=${ROSTER_COLUMNS}&order=squad_id.asc,player_id.asc`, {
+  rest<RosterRow[]>(`${source}?select=${ROSTER_COLUMNS}&order=squad_id.asc,player_id.asc`, {
     Range: `${from}-${from + PAGE - 1}`,
     'Range-Unit': 'items',
     ...(from === 0 ? { Prefer: 'count=exact' } : {}),
@@ -132,7 +142,13 @@ async function inLanes<T>(jobs: (() => Promise<T>)[]): Promise<T[]> {
  * across a page boundary is silently dropped or counted twice.
  */
 async function fetchAllRows(): Promise<RosterRow[]> {
-  const first = await page(0)
+  let first
+  try {
+    first = await page(0)
+  } catch {
+    source = 'roster_feed'
+    first = await page(0)
+  }
   const total = Number(first.range?.split('/')[1]) || first.data.length
   if (total <= PAGE) return first.data
 
