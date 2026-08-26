@@ -97,6 +97,8 @@ export type EventName =
   | 'season_simulated'
   | 'account_claimed'
   | 'handle_changed'
+  | 'result_shared'
+  | 'challenge_opened'
 
 /**
  * Record something that happened.

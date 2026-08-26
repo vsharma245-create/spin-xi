@@ -13,7 +13,7 @@ import { seasonRecords } from '../game/records'
 import { drawShareCard } from '../game/shareCard'
 import { ClaimAccount } from '../components/ClaimAccount'
 import { identity } from '../data/account'
-import { loadStats } from '../data/records'
+import { loadStats, track } from '../data/records'
 import { useAsync } from '../data/useAsync'
 import { levelFromPoints } from '../game/types'
 import { buildReview } from '../game/review'
@@ -166,15 +166,34 @@ export default function Result({
   const share = async () => {
     const url = challengeLink(result)
     const text = `${shareText(result)}\n\n${url}`
+    /*
+     * Recorded because a share is the only thing here that brings anybody new,
+     * and none of it was written down: how many people press it, which way it
+     * goes out, and whether they went through with it were all unknowable.
+     *
+     * `via` matters as much as the count. A picture posted to a timeline and a
+     * line of text pasted into a group chat travel very differently, and the
+     * device decides which of the three happens, not the player.
+     */
+    const sent = (via: 'image' | 'link' | 'clipboard') =>
+      track('result_shared', undefined, {
+        via,
+        format: result.format,
+        outcome: result.outcome,
+        champion: result.outcome === 'CHAMPIONS',
+      })
+
     try {
       const png = await drawShareCard(result)
       const file = png && new File([png], 'spin-xi.png', { type: 'image/png' })
       if (file && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], text, title: 'SPIN XI' })
+        sent('image')
         return
       }
       if (navigator.share) {
         await navigator.share({ text, url, title: 'SPIN XI' })
+        sent('link')
         return
       }
       // No share sheet: leave them the picture and the words.
@@ -186,10 +205,14 @@ export default function Result({
         URL.revokeObjectURL(a.href)
       }
       await navigator.clipboard.writeText(text)
+      sent('clipboard')
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1800)
     } catch {
-      /* user dismissed the share sheet — nothing to do */
+      /*
+       * Backing out of the share sheet lands here, and so does a real failure.
+       * Neither is counted: a share that was thought better of did not happen.
+       */
     }
   }
 

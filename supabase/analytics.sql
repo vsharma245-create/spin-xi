@@ -55,7 +55,12 @@ create table if not exists events (
              'draft_completed',
              'season_simulated',
              'account_claimed',
-             'handle_changed'
+             'handle_changed',
+             -- A season sent somewhere, and a season arrived at from one. Both
+             -- halves, because a share nobody opens is not growth and an
+             -- arrival with nothing sent cannot be attributed to anything.
+             'result_shared',
+             'challenge_opened'
            )),
 
   -- Which draft this belonged to, so a started and an abandoned row can be

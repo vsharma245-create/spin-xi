@@ -44,6 +44,25 @@ export default function Play() {
   const challengeDraw = Number(params.get('draw')) || null
   const daily = useMemo(() => todaysChallenge(), [])
 
+  /*
+   * The other end of a share.
+   *
+   * Counting what goes out says nothing about whether any of it works, and a
+   * share nobody opens is not growth. Recorded once per arrival — the ref
+   * keeps a re-render from counting the same visit twice — and carrying the
+   * draw, so a link that goes round a group chat can be told apart from twenty
+   * separate ones.
+   */
+  const counted = useRef(false)
+  useEffect(() => {
+    if (!challengeDraw || counted.current) return
+    counted.current = true
+    track('challenge_opened', undefined, {
+      draw: challengeDraw,
+      format: params.get('format') ?? null,
+    })
+  }, [challengeDraw, params])
+
   const [phase, setPhase] = useState<Phase>(isDaily ? 'draft' : 'setup')
   const [state, setState] = useState<DraftState | null>(() =>
     isDaily
