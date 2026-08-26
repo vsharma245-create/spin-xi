@@ -28,10 +28,37 @@ function adsTxt(client: string | undefined) {
   }
 }
 
+/**
+ * Proof to Google that this site is ours to sell space on.
+ *
+ * Verification is checked by a crawler reading the HTML, and the ad library is
+ * deliberately not in the head — it is not fetched at all until a slot is close
+ * to being seen, which is the whole reason a cold load is a second rather than
+ * sixteen. A crawler looking for the snippet would find nothing and the account
+ * would never be approved.
+ *
+ * This tag is the other accepted proof. It loads nothing, costs nothing and
+ * says the same thing, from the same variable as everything else.
+ */
+function adsenseMeta(client: string | undefined) {
+  return {
+    name: 'adsense-meta',
+    apply: 'build' as const,
+    transformIndexHtml(html: string) {
+      if (!client) return html
+      return html.replace(
+        '</head>',
+        `  <meta name="google-adsense-account" content="${client}" />\n  </head>`,
+      )
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const client = env.VITE_ADSENSE_CLIENT
   return {
-    plugins: [react(), adsTxt(env.VITE_ADSENSE_CLIENT)],
+    plugins: [react(), adsTxt(client), adsenseMeta(client)],
   }
 })

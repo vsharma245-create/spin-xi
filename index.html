@@ -42,6 +42,58 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      What the page says when the script has not run.
+
+      The game is a single-page app, so the HTML that leaves the server is an
+      empty div and nothing else — which is what a crawler reads, and what a
+      reviewer sees if scripts are blocked. Everything below is true of the
+      site whether or not it renders, and it is the same description the game
+      gives of itself once it does.
+    -->
+    <noscript>
+      <main style="max-width:44rem;margin:0 auto;padding:3rem 1.25rem;font-family:system-ui,sans-serif;color:#F4F1E6;background:#0A0D13;line-height:1.6">
+        <h1 style="font-size:1.9rem;margin:0 0 .5rem">SPIN XI — build your ultimate cricket XI</h1>
+        <p style="color:#CBC5B4"><strong>SPIN XI needs JavaScript to play.</strong> Here is what it is.</p>
+
+        <h2 style="font-size:1.15rem;margin:2rem 0 .4rem">How the game works</h2>
+        <p>You are dealt a real cricket squad from a real season — Mumbai 2019, Sydney
+        2016/17, Australia 2003 — and you draft one player from it. Then another squad,
+        and another, until you have eleven: four batters, a keeper, two all-rounders and
+        four bowlers. Then your XI plays a tournament, match by match, and you find out
+        whether the side you built holds up.</p>
+
+        <h2 style="font-size:1.15rem;margin:2rem 0 .4rem">Four tournaments</h2>
+        <p>A twenty-over league of fourteen games and a playoff; a fifty-over World Cup
+        of nine group games, a semi-final and a final; a seven-game Twenty20 World Cup;
+        and a Test Championship of twelve matches over two years, where draws count.</p>
+
+        <h2 style="font-size:1.15rem;margin:2rem 0 .4rem">Where the numbers come from</h2>
+        <p>42,165 player-seasons across 2,486 squads and 168 teams, from 2002 to 2026.
+        Every rating is computed from publicly published ball-by-ball records of matches
+        that were actually played — no rating is copied from anywhere and none is
+        invented. A batter's rating comes from what they scored, how quickly, and against
+        which attacks; the strength of each competition is worked out from the players who
+        appear in more than one of them.</p>
+
+        <h2 style="font-size:1.15rem;margin:2rem 0 .4rem">Watching a match</h2>
+        <p>Every match can be watched ball by ball: the score climbs, the strike rotates,
+        wickets fall and a chase counts down what is needed off how many. The scorecard
+        and the replay are the same innings, because one is read off the other.</p>
+
+        <h2 style="font-size:1.15rem;margin:2rem 0 .4rem">Who made it</h2>
+        <p>SPIN XI is an independent fan-made cricket draft and tournament simulator. It
+        is not affiliated with, endorsed by or associated with any cricket board, league,
+        franchise, player association or ratings provider. Player names, team names,
+        ratings and season data are used for descriptive and editorial purposes only. No
+        official logos, crests or player images are used.</p>
+
+        <p style="margin-top:2rem">
+          <a href="/privacy" style="color:#E3A54B">Privacy Policy</a> ·
+          <a href="/terms" style="color:#E3A54B">Terms of Service</a>
+        </p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
