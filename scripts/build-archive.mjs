@@ -1089,7 +1089,10 @@ commit;
 const buildId = randomUUID()
 await writeFile(
   join(ROOT, 'supabase/archive.sql'),
-  sql.replace(/\ncommit;\s*$/, `\nupdate dataset_meta set version = '${buildId}', updated_at = now();\n\ncommit;\n`),
+  sql.replace(/\ncommit;\s*$/, `\nupdate dataset_meta set version = '${buildId}', updated_at = now();
+
+-- The join, done once here rather than per page per visitor.
+refresh materialized view roster_pages;\n\ncommit;\n`),
 )
 
 /*

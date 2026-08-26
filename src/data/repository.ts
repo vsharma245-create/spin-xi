@@ -93,16 +93,39 @@ const PAGE = 1000
  * cancelling statements under load.
  */
 const page = (from: number) =>
-  rest<RosterRow[]>(`roster_feed?select=${ROSTER_COLUMNS}&order=squad_id.asc,player_id.asc`, {
+  rest<RosterRow[]>(`roster_pages?select=${ROSTER_COLUMNS}&order=squad_id.asc,player_id.asc`, {
     Range: `${from}-${from + PAGE - 1}`,
     'Range-Unit': 'items',
     ...(from === 0 ? { Prefer: 'count=exact' } : {}),
   })
 
 /**
- * PostgREST caps a response at a thousand rows. The first page also reports the
- * total, so the rest go out together rather than one after another — four
- * sequential round trips to Sydney is most of a cold start.
+ * How many of those pages may be in the air at once.
+ *
+ * All of them used to be. Forty-two requests fired together is forty-two
+ * connections held open by one visitor, and a connection pool is a fixed and
+ * fairly small thing — so two or three people falling back at the same moment
+ * could exhaust it and hand everybody else an error, including the people
+ * doing nothing more demanding than signing in. Four at a time still covers
+ * the latency of a round trip without ever being a crowd.
+ */
+const LANES = 4
+
+/** Run the jobs a few at a time, in order, and keep the results in order. */
+async function inLanes<T>(jobs: (() => Promise<T>)[]): Promise<T[]> {
+  const out = new Array<T>(jobs.length)
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(LANES, jobs.length) }, async () => {
+      for (let i = next++; i < jobs.length; i = next++) out[i] = await jobs[i]()
+    }),
+  )
+  return out
+}
+
+/**
+ * PostgREST caps a response at a thousand rows, so the archive comes back in
+ * pages. The first reports the total, and the rest follow a few at a time.
  *
  * The order must be unique, not merely sorted: ordering by squad alone leaves
  * rows within a squad free to shuffle between requests, and a row that moves
@@ -113,8 +136,8 @@ async function fetchAllRows(): Promise<RosterRow[]> {
   const total = Number(first.range?.split('/')[1]) || first.data.length
   if (total <= PAGE) return first.data
 
-  const rest = await Promise.all(
-    Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => page((i + 1) * PAGE)),
+  const rest = await inLanes(
+    Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => () => page((i + 1) * PAGE)),
   )
   return [first.data, ...rest.map((r) => r.data)].flat()
 }
@@ -138,8 +161,8 @@ async function fetchPartnerships(): Promise<PartnershipRow[]> {
     const first = await pairPage(0)
     const total = Number(first.range?.split('/')[1]) || first.data.length
     if (total <= PAGE) return first.data
-    const rest_ = await Promise.all(
-      Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => pairPage((i + 1) * PAGE)),
+    const rest_ = await inLanes(
+      Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => () => pairPage((i + 1) * PAGE)),
     )
     return [first.data, ...rest_.map((r) => r.data)].flat()
   } catch {
@@ -154,22 +177,39 @@ async function fetchPartnerships(): Promise<PartnershipRow[]> {
  *
  * Never fatal: a missing or stale snapshot only means the slower path is used.
  */
-async function fetchSnapshot(): Promise<
-  { version: string; rows: RosterRow[]; partnerships: PartnershipRow[] } | null
-> {
+type Snapshot = { version: string; rows: RosterRow[]; partnerships: PartnershipRow[] }
+
+async function readSnapshot(bust: boolean): Promise<Snapshot | null> {
   try {
-    const res = await fetch('/archive.json', { cache: 'no-cache' })
+    const res = await fetch(bust ? `/archive.json?r=${Date.now()}` : '/archive.json', {
+      cache: bust ? 'reload' : 'no-cache',
+    })
     if (!res.ok) return null
     const body = (await res.json()) as {
       version?: string
       rows?: RosterRow[]
       partnerships?: PartnershipRow[]
     }
-    if (!body?.version || !Array.isArray(body.rows)) return null
+    if (!body?.version || !Array.isArray(body.rows) || !body.rows.length) return null
     return { version: body.version, rows: body.rows, partnerships: body.partnerships ?? [] }
   } catch {
     return null
   }
+}
+
+/**
+ * Asked twice before the database is troubled at all.
+ *
+ * A dropped connection on a phone, or a half-written response out of a proxy,
+ * used to send that visitor straight to reading the archive out of Postgres —
+ * forty-three requests fetching more bytes from a slower place than the file
+ * that had just failed. Nearly every one of those failures is transient and a
+ * second ask settles it, so the second ask happens first. The retry goes past
+ * any cache, because a poisoned cache entry is one of the things that breaks
+ * the first one.
+ */
+async function fetchSnapshot(): Promise<Snapshot | null> {
+  return (await readSnapshot(false)) ?? (await readSnapshot(true))
 }
 
 async function fetchVersion(): Promise<string> {
@@ -268,8 +308,20 @@ async function load(): Promise<LoadResult> {
   }
 
   /*
-   * No snapshot — an old deploy, or the file failed to load. Fall back to
-   * reading the tables. Slow, and correct.
+   * Still no snapshot, twice asked.
+   *
+   * Whatever is already on this device wins here, without a word to the
+   * database. It cost nothing, it is almost certainly current — the file it
+   * came from only changes when the archive is rebuilt — and the alternative
+   * is asking Postgres to hand over the whole archive a page at a time.
+   */
+  if (cached?.rows.length) return serve(cached)
+
+  /*
+   * Nothing cached either, so the tables it is: the last resort, and the only
+   * path here that touches the archive in Postgres at all. It reads the
+   * materialized copy rather than the four-table join, which is the difference
+   * between a page costing a couple of milliseconds and costing half a second.
    */
   let version: string
   if (cached) {

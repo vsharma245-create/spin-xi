@@ -58959,6 +58959,9 @@ insert into squad_players (squad_id, player_id, role, alt_roles, ovr, bat, bowl,
   ('australia-tests-2016', '508a1ea7', 'BAT', '{}', 74, 79, 40, 79, 96, 61, 1, 153, 347, 2, 0, 0, 0),
   ('australia-tests-2016', '32198ae0', 'AR', '{}', 50, 59, 40, 59, 40, 50, 1, 8, 28, 2, 0, 12, 9);
 
-update dataset_meta set version = '42ef7406-e40b-43de-860b-e484f4bea445', updated_at = now();
+update dataset_meta set version = 'c7b7bd0d-5b31-41fa-8165-523476f41c0e', updated_at = now();
+
+-- The join, done once here rather than per page per visitor.
+refresh materialized view roster_pages;
 
 commit;

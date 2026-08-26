@@ -30,6 +30,7 @@
 /* ── Rebuild ───────────────────────────────────────────────────────────── */
 
 drop view if exists squad_index;
+drop materialized view if exists roster_pages;
 drop view if exists roster_feed;
 drop table if exists squad_players cascade;
 drop table if exists squads        cascade;
@@ -247,6 +248,32 @@ from squad_players sp
   join players p on p.id  = sp.player_id
   join teams   t on t.key = s.team_key;
 
+/*
+ * The same rows, kept on disk in the order they are read in.
+ *
+ * roster_feed is a join across four tables, and paging it means Postgres
+ * building and sorting all 42,165 rows again for every page — forty-three
+ * times, at better than half a second each. Measured on the live database it
+ * was seventy-four per cent of every millisecond the instance spent, and the
+ * statement timeouts players saw as "rain delay" came out of the same place.
+ *
+ * Almost nobody reads it any more: the archive ships as a static file and the
+ * database is only consulted when that file cannot be had. But a fallback that
+ * costs twenty-three seconds of database time is not a fallback, it is an
+ * outage waiting for a bad afternoon — so the join is done once, when the
+ * archive is built, and a page of it is now an index scan.
+ *
+ * No RLS, and none wanted: this is the same public archive roster_feed already
+ * grants to anon, and every row of it ships to the browser as a file anyway.
+ */
+create materialized view roster_pages as
+  select * from roster_feed order by squad_id, player_id;
+
+-- Unique, not merely sorted. Ordering by squad alone leaves rows within a
+-- squad free to shuffle between requests, and a row that moves across a page
+-- boundary is silently dropped or counted twice.
+create unique index roster_pages_key on roster_pages (squad_id, player_id);
+
 -- One row per squad, with the strength figures the fixture list picks on, so
 -- the game can choose its opponents without downloading every roster first.
 -- The three cuts match how a side is actually judged: its top order, its
@@ -294,9 +321,9 @@ create policy "public read" on dataset_meta  for select using (true);
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'anon') then
-    grant select on roster_feed, squad_index to anon;
+    grant select on roster_feed, roster_pages, squad_index to anon;
   end if;
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
-    grant select on roster_feed, squad_index to authenticated;
+    grant select on roster_feed, roster_pages, squad_index to authenticated;
   end if;
 end $$;
