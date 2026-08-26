@@ -87,11 +87,16 @@ const writeCache = (value: Cached) => idb('readwrite', (s) => s.put(value, CACHE
 
 const PAGE = 1000
 
+/*
+ * Only the first page asks for a count. It used to be on every one of the
+ * forty-three, and counting a four-table view is what tipped the database into
+ * cancelling statements under load.
+ */
 const page = (from: number) =>
   rest<RosterRow[]>(`roster_feed?select=${ROSTER_COLUMNS}&order=squad_id.asc,player_id.asc`, {
     Range: `${from}-${from + PAGE - 1}`,
     'Range-Unit': 'items',
-    Prefer: 'count=exact',
+    ...(from === 0 ? { Prefer: 'count=exact' } : {}),
   })
 
 /**
@@ -125,7 +130,7 @@ const pairPage = (from: number) =>
   rest<PartnershipRow[]>('partnerships?select=player_a,player_b,balls,runs&order=player_a.asc,player_b.asc', {
     Range: `${from}-${from + PAGE - 1}`,
     'Range-Unit': 'items',
-    Prefer: 'count=exact',
+    ...(from === 0 ? { Prefer: 'count=exact' } : {}),
   })
 
 async function fetchPartnerships(): Promise<PartnershipRow[]> {
@@ -141,6 +146,29 @@ async function fetchPartnerships(): Promise<PartnershipRow[]> {
     // A database that has not been pushed yet still plays; the side simply has
     // no partnerships to show.
     return []
+  }
+}
+
+/**
+ * The archive as the build wrote it, served as a static file.
+ *
+ * Never fatal: a missing or stale snapshot only means the slower path is used.
+ */
+async function fetchSnapshot(): Promise<
+  { version: string; rows: RosterRow[]; partnerships: PartnershipRow[] } | null
+> {
+  try {
+    const res = await fetch('/archive.json', { cache: 'no-cache' })
+    if (!res.ok) return null
+    const body = (await res.json()) as {
+      version?: string
+      rows?: RosterRow[]
+      partnerships?: PartnershipRow[]
+    }
+    if (!body?.version || !Array.isArray(body.rows)) return null
+    return { version: body.version, rows: body.rows, partnerships: body.partnerships ?? [] }
+  } catch {
+    return null
   }
 }
 
@@ -207,9 +235,42 @@ async function load(): Promise<LoadResult> {
     return { source: 'cache', ...counts(c.rows) }
   }
 
-  // With a cache in hand, ask what version the archive is on before pulling all
-  // of it: a returning player who is already current downloads a single row.
-  // With no cache there is nothing to validate, so everything goes out at once.
+  /*
+   * The snapshot decides.
+   *
+   * The archive used to be read out of Postgres on every cold start: forty-three
+   * paged requests against a view joining four tables, each one ordering all
+   * 42,165 rows and counting them again. Sixteen and a half seconds when it
+   * worked, and a cancelled statement when the instance was busy — which is the
+   * "rain delay" players were getting.
+   *
+   * None of that work needed doing. The archive changes when it is rebuilt and
+   * not otherwise, so the build writes it out as a single file that the CDN
+   * serves compressed: fourteen megabytes become about one and a half, in one
+   * request, with no database involved at all.
+   *
+   * The build stamps the same id into the file and into the SQL, so the id is
+   * also the cache key — a returning player whose copy matches downloads
+   * nothing and parses nothing.
+   */
+  const snapshot = await fetchSnapshot()
+
+  if (snapshot?.rows.length) {
+    if (cached && cached.version === snapshot.version) return serve(cached)
+    const challenges = await fetchChallenges()
+    const partnerships = snapshot.partnerships
+    hydrate(snapshot.rows)
+    hydrateChallenges(challenges)
+    hydratePartnerships(partnerships)
+    loadedVersion = snapshot.version
+    void writeCache({ version: snapshot.version, rows: snapshot.rows, challenges, partnerships })
+    return { source: 'network', ...counts(snapshot.rows) }
+  }
+
+  /*
+   * No snapshot — an old deploy, or the file failed to load. Fall back to
+   * reading the tables. Slow, and correct.
+   */
   let version: string
   if (cached) {
     try {

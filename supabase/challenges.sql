@@ -29,6 +29,9 @@ select
 from generate_series(0, 545) as slot;
 
 -- Any client holding a cached archive must fetch the new rotation.
-update dataset_meta set version = gen_random_uuid(), updated_at = now();
+-- The version is stamped by archive.sql, which carries the build id the static
+-- snapshot was written with. Bumping it here would break that pairing and send
+-- every client down the slow path.
+update dataset_meta set updated_at = now();
 
 commit;

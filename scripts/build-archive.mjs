@@ -18,7 +18,8 @@
  *                 the archive that now settles nearly everyone
  */
 import { challengeRows } from './challenges.mjs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 
 const ROOT = new URL('..', import.meta.url).pathname
@@ -1080,7 +1081,59 @@ ${insert(
 commit;
 `
 
-await writeFile(join(ROOT, 'supabase/archive.sql'), sql)
+/*
+ * A build id, stamped into the SQL and into the snapshot below, so the client
+ * can tell in one cheap query whether the file it just downloaded is still the
+ * archive the database is holding.
+ */
+const buildId = randomUUID()
+await writeFile(
+  join(ROOT, 'supabase/archive.sql'),
+  sql.replace(/\ncommit;\s*$/, `\nupdate dataset_meta set version = '${buildId}', updated_at = now();\n\ncommit;\n`),
+)
+
+/*
+ * The archive, as one static file.
+ *
+ * It used to be read out of Postgres on every cold start: forty-three paged
+ * requests against a view that joins four tables, each one ordering all 42,165
+ * rows and counting them again. Sixteen and a half seconds when it worked, and
+ * a statement timeout when the instance was busy — which is what players were
+ * actually seeing.
+ *
+ * None of that work needed doing. The archive changes when it is rebuilt and
+ * not otherwise, so it is written once here and served from the CDN as a single
+ * compressed file. The database stays the source of truth and the fallback.
+ */
+{
+  const rows = rosterRows.map((r) => {
+    // The same three figures the SQL writes, from the same function.
+    const [s1, s2, s3] = cardStats(r.source, r.role)
+    const squad = squads.get(r.squad)
+    const player = players.get(r.player)
+    const team = teams.get(squad.key)
+    return {
+      squad_id: r.squad, team_key: squad.key, team_name: squad.name,
+      team_short: squad.short, season: squad.season, competition: squad.comp,
+      formats: squad.formats, region: team?.region ?? 'WORLD',
+      player_id: r.player, name: player.name, surname: player.surname,
+      nation: player.nation, role: r.role, alt_roles: [],
+      ovr: r.ovr, s1, s2, s3,
+    }
+  })
+  // The partnerships ride along. Ten more paged requests to save, and they add
+  // very little to a file the CDN is compressing anyway.
+  const pairs = partnerships.map((p) => ({
+    player_a: p[0], player_b: p[1], balls: p[2], runs: p[3],
+  }))
+  const snapshot = JSON.stringify({ version: buildId, rows, partnerships: pairs })
+  await mkdir(join(ROOT, 'public'), { recursive: true })
+  await writeFile(join(ROOT, 'public/archive.json'), snapshot)
+  console.log(
+    `  snapshot: public/archive.json — ${rows.length} rows, ${pairs.length} pairs, ` +
+      `${(snapshot.length / 1048576).toFixed(1)} MB before compression`,
+  )
+}
 
 // A manifest of what this build contains, so the push can prove the whole
 // archive arrived rather than reporting success on a truncated load.
