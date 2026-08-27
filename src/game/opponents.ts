@@ -178,27 +178,62 @@ export function opponentPool(
     const recent = seasons.filter((s) => seasonYear(s.season) >= latestSeason() - RECENT_WINDOW)
     const from = opts.latest && recent.length ? recent : seasons
     /**
-     * Four seasons are drawn and the strongest of them plays.
+     * Ten seasons are drawn and the strongest of them plays.
      *
-     * You are picking each man in his best year, out of everything the archive
-     * holds; a side taken from one season chosen at random is not the same
-     * calibre of thing, and a field assembled that way was losing before the
-     * toss. Best of four closes most of that gap without pinning each club to
-     * its single greatest team, so the fixture list still changes run to run.
+     * You are picking each man in his best year out of everything the archive
+     * holds, and a club taken from one season chosen at random is not the same
+     * calibre of thing — a field assembled that way had lost before the toss.
+     * It was best of four, which left too much of the fixture list as sides
+     * nobody would field on purpose. Six pulls each club toward its own best
+     * team without pinning it there, so the list still changes run to run —
+     * and without turning a World Cup into every great national side at once.
      */
-    const drawn = Array.from({ length: Math.min(4, from.length) }, () => from[Math.floor(rand() * from.length)])
+    const drawn = Array.from({ length: Math.min(6, from.length) }, () => from[Math.floor(rand() * from.length)])
       .map((sq) => opponentFrom(squadRated(sq, opts.ratingMode ?? 'SEASON', format)))
       .sort((a, b) => b.ratings.ovr - a.ratings.ovr)[0]
     sides.push(drawn)
   }
 
-  const ordered = opts.best
-    ? [...sides]
-        .sort((a, b) => b.ratings.ovr - a.ratings.ovr)
-        .slice(0, Math.max(opts.bestOf ?? count + 3, count))
-    : sides
+  if (opts.best) {
+    const best = [...sides]
+      .sort((a, b) => b.ratings.ovr - a.ratings.ovr)
+      .slice(0, Math.max(opts.bestOf ?? count + 3, count))
+    return shuffle(best, rand).slice(0, count)
+  }
 
-  return shuffle(ordered, rand).slice(0, count)
+  /*
+   * A league is not a random sample of every club that ever existed.
+   *
+   * The field used to be drawn flat out of the whole archive, so a side picked
+   * from the best eleven players in history spent a season against whoever
+   * turned up — and won ninety-three per cent of its group games, which is not
+   * a tournament, it is a procession. Real fixture lists are the good sides of
+   * an era with a couple of also-rans, and that is what this draws: sorted by
+   * strength and sampled with a bias toward the top, so the best teams are
+   * nearly always in and the weak ones turn up now and then.
+   *
+   * Not scaled to the player. A field that gets better because you drafted
+   * well is a field that never lets you feel you drafted well.
+   */
+  const ranked = [...sides].sort((a, b) => b.ratings.ovr - a.ratings.ovr)
+  const picked: Opponent[] = []
+  const taken = new Set<number>()
+  let guard = 0
+  while (picked.length < Math.min(count, ranked.length) && guard++ < ranked.length * 40) {
+    // Squaring the draw pulls it toward the front of the list without ever
+    // shutting the back of it out.
+    const i = Math.min(ranked.length - 1, Math.floor(Math.pow(rand(), 1.8) * ranked.length))
+    if (taken.has(i)) continue
+    taken.add(i)
+    picked.push(ranked[i])
+  }
+  for (let i = 0; picked.length < Math.min(count, ranked.length); i++) {
+    if (!taken.has(i)) {
+      taken.add(i)
+      picked.push(ranked[i])
+    }
+  }
+  return shuffle(picked, rand)
 }
 
 /**
