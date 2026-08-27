@@ -82,12 +82,23 @@ export default function Leaderboard() {
       ),
     [format, period],
   )
+  /*
+   * Only when it is being looked at.
+   *
+   * Today's board and its head count were fetched on every visit, including
+   * the tournament tab that is open by default and never shows either of them
+   * — two requests to the other side of the world for a screen nobody was on.
+   */
+  const onDaily = board === 'DAILY'
   const todays = useAsync(
-    () => loadDaily(daily.dateKey) as Promise<LadderRow[]>,
-    [daily.dateKey],
+    () => (onDaily ? (loadDaily(daily.dateKey) as Promise<LadderRow[]>) : Promise.resolve([])),
+    [daily.dateKey, onDaily],
   )
   const me = useAsync(() => loadStats(), [])
-  const entrants = useAsync(() => dailyEntrants(daily.dateKey), [daily.dateKey])
+  const entrants = useAsync(
+    () => (onDaily ? dailyEntrants(daily.dateKey) : Promise.resolve(null)),
+    [daily.dateKey, onDaily],
+  )
   const mine = me.data
 
   const showing = board === 'DAILY' ? todays : ladder
@@ -259,9 +270,13 @@ export default function Leaderboard() {
                  * is a whole line free, and the name gets the width.
                  */}
                 <div className="truncate text-[9.5px] font-semibold uppercase tracking-wider text-moss">
+                  {/* The side's name reaches a phone too. It only ever showed
+                      from the small breakpoint up, which is to say almost
+                      never — the wicket tally gives up the room for it. */}
                   <span className="sm:hidden">
+                    {r.teamName && r.teamName !== 'YOUR XI' ? `${r.teamName} · ` : ''}
                     {r.wins}–{r.losses}
-                    {isTest ? `–${r.draws}` : ''} · {r.runs.toLocaleString()} runs · {r.wickets} wkts
+                    {isTest ? `–${r.draws}` : ''} · {r.runs.toLocaleString()} runs
                   </span>
                   {/* The side's own name where they gave it one — it says more
                       about a season than a level title does, and every result
