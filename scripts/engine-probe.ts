@@ -189,6 +189,54 @@ for (const format of ['T20L', 'ODIWC'] as Format[]) {
   expect(rates[0] > rates[1] && rates[0] > rates[2], `${format}: a bigger gap wins more often`, `${rates.map((r) => r.toFixed(0)).join('% / ')}%`)
 }
 
+/* ── Does the pitch mean something to a particular player? ── */
+console.log('\n  ── matchups and fielding ──')
+{
+  const all = SQUADS.filter((s) => s.formats.includes('T20L')).flatMap((s) => s.players)
+  // Only players the archive has enough of to have split anything.
+  const spread = all.filter((p) => p.vsSpin > 0 && p.vsPace > 0 && p.bat >= 45)
+  const gap = spread.map((p) => p.vsSpin - p.vsPace)
+  const wide = gap.filter((g) => Math.abs(g) >= 8).length
+  expect(spread.length > 200, 'players carry a pace and a spin rating', `${spread.length} of them`)
+  expect(wide / spread.length > 0.15, 'the two ratings actually differ', `${((wide / spread.length) * 100).toFixed(0)}% differ by 8+`)
+
+  const best = [...spread].sort((a, b) => b.vsSpin - b.vsPace - (a.vsSpin - a.vsPace))[0]
+  const worst = [...spread].sort((a, b) => a.vsSpin - a.vsPace - (b.vsSpin - b.vsPace))[0]
+  console.log(`       best against spin : ${best.name} ${best.season} — pace ${best.vsPace}, spin ${best.vsSpin}`)
+  console.log(`       worst             : ${worst.name} ${worst.season} — pace ${worst.vsPace}, spin ${worst.vsSpin}`)
+
+  // A side that cannot play spin should suffer on a turner and not elsewhere.
+  const even = build('T20L', 'good')
+  const spin = build('T20L', 'good')
+  let onTurner = 0
+  let onFlat = 0
+  for (let i = 0; i < 200; i++) {
+    const rand = makeRng(80000 + i)
+    onTurner += playInnings({ batting: orderFrom(even), attack: attackFrom(spin, 'SPIN'), format: 'T20L', pitch: 'SPIN', conditions: conditionsFor('T20L', 'SPIN', rand), rand }).runs
+    onFlat += playInnings({ batting: orderFrom(even), attack: attackFrom(spin, 'BATTING'), format: 'T20L', pitch: 'BATTING', conditions: conditionsFor('T20L', 'BATTING', makeRng(80000 + i)), rand: makeRng(80000 + i) }).runs
+  }
+  /*
+   * A turner does not only cost runs, it takes wickets — which shortens the
+   * innings and hides some of the difference in the total. Five runs on a
+   * hundred and sixty is the surface being worth something.
+   */
+  expect(onFlat / 200 > onTurner / 200 + 5, 'a batting surface is worth runs a turner is not',
+    `${(onFlat / 200).toFixed(0)} flat against ${(onTurner / 200).toFixed(0)} turning`)
+
+  // Catches go down, and not too many of them.
+  let chances = 0
+  let floored = 0
+  for (let i = 0; i < 200; i++) {
+    const r = playInnings({ batting: orderFrom(even), attack: attackFrom(spin, 'NEUTRAL'), format: 'T20L', pitch: 'NEUTRAL', conditions: conditionsFor('T20L', 'NEUTRAL', makeRng(9 + i)), rand: makeRng(9 + i) })
+    for (const d of r.deliveries) {
+      if (d.dropped) { floored++; chances++ }
+      if (d.wicket) chances++
+    }
+  }
+  const rate = (floored / Math.max(1, chances)) * 100
+  expect(rate > 2 && rate < 22, 'catches go down, but not constantly', `${rate.toFixed(0)}% of chances floored`)
+}
+
 /* ── Whole matches, including the ones nobody wins ── */
 console.log('\n  ── whole matches ──')
 for (const format of ['T20L', 'ODIWC', 'TEST'] as Format[]) {

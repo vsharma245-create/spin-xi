@@ -59,6 +59,24 @@ async function ensure(key) {
   return dir
 }
 
+/* ── Who bowls what ────────────────────────────────────────────────────── */
+
+/**
+ * Pace or spin, by Cricsheet identifier, from `npm run bowling`.
+ *
+ * Two thousand of them, read off their own Wikipedia infoboxes rather than
+ * guessed from figures — a medium-pacer and an off-spinner can have identical
+ * economy rates and nothing in the ball-by-ball data says which is which.
+ */
+const STYLE = await readFile(join(ROOT, 'data/bowling.json'), 'utf8')
+  .then((raw) => {
+    const players = JSON.parse(raw).players ?? {}
+    const map = new Map()
+    for (const [id, v] of Object.entries(players)) if (v?.type) map.set(id, v.type)
+    return map
+  })
+  .catch(() => new Map())
+
 /* ── Aggregation ───────────────────────────────────────────────────────── */
 
 const blank = () => ({
@@ -76,6 +94,18 @@ const blank = () => ({
   catches: 0,
   stumpings: 0,
   oppStrength: 0,
+  /*
+   * What he did against the two kinds of bowling.
+   *
+   * Every cricket conversation about a batter gets here within a minute — he
+   * cannot play spin, he is uncomfortable against genuine pace — and none of
+   * it was anywhere in the archive, so a turning pitch meant nothing to any
+   * particular player. The bowler's type comes from his own Wikipedia entry,
+   * joined by Cricsheet identifier; deliveries from a bowler nobody has typed
+   * are left out of both rather than guessed into one.
+   */
+  vsPace: { runs: 0, balls: 0, outs: 0 },
+  vsSpin: { runs: 0, balls: 0, outs: 0 },
 })
 
 /**
@@ -163,11 +193,19 @@ async function collect(compKey, agg, teamSeasons, pairs) {
         for (const ball of over.deliveries ?? []) {
           const extras = ball.extras ?? {}
 
+          const bowlerType = STYLE.get(ident(ball.bowler))
+
           const bat = get(ball.batter)
           if (bat) {
             bat.runs += ball.runs.batter
             if (!('wides' in extras)) bat.balls++
             seasonRuns.set(ball.batter, (seasonRuns.get(ball.batter) ?? 0) + ball.runs.batter)
+            // Against pace, or against spin, where anybody has said which.
+            const split = bowlerType === 'PACE' ? bat.vsPace : bowlerType === 'SPIN' ? bat.vsSpin : null
+            if (split) {
+              split.runs += ball.runs.batter
+              if (!('wides' in extras)) split.balls++
+            }
           }
           for (const nm of [ball.batter, ball.non_striker]) {
             if (!order.has(nm)) order.set(nm, order.size + 1)
@@ -195,7 +233,15 @@ async function collect(compKey, agg, teamSeasons, pairs) {
 
           for (const w of ball.wickets ?? []) {
             const out = get(w.player_out)
-            if (out) out.outs++
+            if (out) {
+              out.outs++
+              // Only the striker's dismissal says anything about the matchup;
+              // a run out at the other end says nothing about either bowler.
+              if (w.player_out === ball.batter) {
+                const split = bowlerType === 'PACE' ? out.vsPace : bowlerType === 'SPIN' ? out.vsSpin : null
+                if (split) split.outs++
+              }
+            }
             if (bowl && !['run out', 'retired hurt', 'retired out', 'obstructing the field'].includes(w.kind)) {
               bowl.wickets++
             }

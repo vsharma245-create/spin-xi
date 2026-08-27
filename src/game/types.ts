@@ -63,6 +63,11 @@ export interface PlayerSeason {
   bat: number
   /** Bowling contribution 0–100, used by the simulator. */
   bowl: number
+  /** Batting against pace, and against spin. Read from what he actually did. */
+  vsPace: number
+  vsSpin: number
+  /** How safe a pair of hands, from catches taken per match. */
+  field: number
   /** Set when the card is showing prime ratings rather than season form. */
   prime?: boolean
   /** The season the prime rating comes from. */

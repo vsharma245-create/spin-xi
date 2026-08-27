@@ -771,8 +771,76 @@ for (const r of rows) {
     ovr: r.ovr,
     bat: Math.round(r.bat),
     bowl: Math.round(r.bowl),
+    ...matchups(r),
+    field: fielding(r),
     source: r,
   })
+}
+
+/* ── What he does against each kind of bowling ───────────────────────────── */
+
+/**
+ * A batting rating against pace, and another against spin.
+ *
+ * Every cricket conversation about a batter arrives here within a minute — he
+ * cannot play spin, he is uncomfortable against real pace — and none of it was
+ * in the archive, so a turning pitch meant nothing to any particular player.
+ * Warner in 2019 struck at 131 against pace and 158 against spin and averaged
+ * a hundred and sixty-six doing it; Dhawan the same year went the other way.
+ * That is a fact about them and it belongs on the card.
+ *
+ * Anchored to the overall batting rating and moved from it by how much better
+ * or worse the split actually was, weighted by how many balls it rests on. A
+ * hundred and twenty deliveries is where it starts to be believed; below that
+ * it stays close to what he is generally worth, because a good week against
+ * spin is not a fact about anybody.
+ */
+function matchups(r) {
+  const t = r.stats
+  const bat = Math.round(r.bat)
+  // Runs a ball, scaled by how long he lasts. Both matter and neither alone
+  // says enough: a slogger and a blocker can share a strike rate.
+  const worth = (x) => {
+    if (!x || x.balls < 12) return null
+    const perBall = x.runs / x.balls
+    const perOut = x.outs > 0 ? x.runs / x.outs : x.runs
+    return perBall * Math.sqrt(Math.max(4, perOut))
+  }
+  const overall = worth({ runs: t.runs, balls: t.balls, outs: t.outs })
+  const rate = (split) => {
+    const w = worth(split)
+    if (!overall || !w) return bat
+    /*
+     * Half the measured difference, not all of it.
+     *
+     * The raw split swings enormously — a season where the spinners never got
+     * him out reads as a fifty-point gap — and taken whole it drowned out how
+     * good the batter is at all: elite sides stopped beating good ones because
+     * every one of their batters had a hole somewhere. Half keeps the order
+     * and the direction, which is what the pitch needs to know, without the
+     * rating becoming mostly noise.
+     */
+    const evidence = split.balls / (split.balls + 120)
+    const ratio = 1 + (w / overall - 1) * evidence * 0.5
+    return Math.max(20, Math.min(99, Math.round(bat * ratio)))
+  }
+  return { vsPace: rate(t.vsPace), vsSpin: rate(t.vsSpin) }
+}
+
+/**
+ * How safe a pair of hands he is.
+ *
+ * Read off catches taken per match, which is the only fielding record the
+ * ball-by-ball data keeps. It is a blunt instrument — a slip fielder gets more
+ * chances than a man on the boundary — but it is a real one, and without it
+ * every dropped catch in the game would have been drawn from thin air.
+ */
+function fielding(r) {
+  const t = r.stats
+  if (!t.matches) return 55
+  const per = (t.catches ?? 0) / t.matches
+  // Around half a catch a match is a good fielder; nobody averages two.
+  return Math.max(35, Math.min(96, Math.round(45 + Math.min(1.7, per / 0.42) * 32)))
 }
 
 /**
@@ -1066,7 +1134,8 @@ ${insert('squads', ['id', 'team_key', 'team_name', 'team_short', 'season', 'comp
 ${insert(
   'squad_players',
   ['squad_id', 'player_id', 'role', 'alt_roles', 'ovr', 'bat', 'bowl', 's1', 's2', 's3',
-   'matches', 'runs', 'balls', 'outs', 'wickets', 'bowl_balls', 'bowl_runs'],
+   'matches', 'runs', 'balls', 'outs', 'wickets', 'bowl_balls', 'bowl_runs',
+   'vs_pace', 'vs_spin', 'field'],
   rosterRows.map((r) => {
     const [s1, s2, s3] = cardStats(r.source, r.role)
     const t = r.source.stats
@@ -1074,6 +1143,7 @@ ${insert(
       q(r.squad), q(r.player), q(r.role), `'{}'`,
       r.ovr, r.bat, r.bowl, n(s1), n(s2), n(s3),
       t.matches, t.runs, t.balls, t.outs, t.wickets, t.bowlBalls, t.bowlRuns,
+      r.vsPace, r.vsSpin, r.field,
     ]
   }),
 )}

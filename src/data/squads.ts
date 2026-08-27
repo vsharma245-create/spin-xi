@@ -39,6 +39,10 @@ export interface RosterRow {
   s2: number | null
   s3: number | null
   alt_roles: Role[]
+  /** Batting against each kind of bowling, and how safe his hands are. */
+  vs_pace?: number
+  vs_spin?: number
+  field?: number
 }
 
 /**
@@ -228,6 +232,14 @@ export function hydrate(rows: RosterRow[]): void {
       season: r.season,
       comp: r.competition,
       ...contribution(r.role, raw),
+      /*
+       * A pitch that turns should mean something to a particular player, not
+       * just to a side's average. Defaulted to the overall batting figure for
+       * a row written before the archive carried the split.
+       */
+      vsPace: r.vs_pace ?? contribution(r.role, raw).bat,
+      vsSpin: r.vs_spin ?? contribution(r.role, raw).bat,
+      field: r.field ?? 55,
     })
   }
 

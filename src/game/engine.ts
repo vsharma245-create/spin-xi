@@ -37,16 +37,27 @@ interface Shape {
   quota: number
   /** How hard the last overs are chased. Tests do not chase. */
   death: number
+  /**
+   * How far class tells.
+   *
+   * Twenty overs is the format upsets live in — there is not enough of it for
+   * the better side to be proved better, which is exactly why it was invented.
+   * Fifty overs gives quality more chances to count and five days gives it
+   * every chance, so the same gap in ability is worth more the longer the game
+   * lasts. Applied to the contest between bat and ball rather than to the
+   * result, because that is where the difference actually accrues.
+   */
+  class: number
 }
 
 const SHAPE: Record<Format, Shape> = {
   // 165 off 20 is 8.25 an over; six down is a wicket every 20 balls.
-  T20L: { overs: 20, settle: 7, ballsPerWicket: 20, rate: 8.25, quota: 4, death: 1.5 },
-  T20WC: { overs: 20, settle: 7, ballsPerWicket: 21, rate: 7.9, quota: 4, death: 1.5 },
+  T20L: { overs: 20, settle: 7, ballsPerWicket: 20, rate: 8.25, quota: 4, death: 1.5, class: 1 },
+  T20WC: { overs: 20, settle: 7, ballsPerWicket: 21, rate: 7.9, quota: 4, death: 1.5, class: 1 },
   // 270 off 50 is 5.4; seven down over 300 balls.
-  ODIWC: { overs: 50, settle: 16, ballsPerWicket: 43, rate: 5.4, quota: 10, death: 1.45 },
+  ODIWC: { overs: 50, settle: 16, ballsPerWicket: 43, rate: 5.4, quota: 10, death: 1.45, class: 1.55 },
   // A day's play: 90 overs at a shade over three, and about six wickets.
-  TEST: { overs: 150, settle: 26, ballsPerWicket: 80, rate: 3.3, quota: 38, death: 1 },
+  TEST: { overs: 150, settle: 26, ballsPerWicket: 80, rate: 3.3, quota: 38, death: 1, class: 1.45 },
 }
 
 /* ── Reading a player ────────────────────────────────────────────────────── */
@@ -70,6 +81,28 @@ const tempoOf = (p: PlayerSeason) => {
 
 /** How hard he is to get out. Batting quality, mostly. */
 const resistOf = (p: PlayerSeason) => 0.45 + (p.bat / 100) * 1.3
+
+/**
+ * The same, but against the man actually bowling.
+ *
+ * A batting rating is an average over both kinds of bowling and hides the
+ * thing every cricket argument is about. Warner in 2019 struck at 131 against
+ * pace and 158 against spin; Dhawan that year was the other way round. Read
+ * from what they did, so a turning pitch is a problem for the players it is
+ * actually a problem for.
+ */
+const facing = (p: PlayerSeason, bowler: PlayerSeason) => {
+  const against = bowler.role === 'SPIN' ? p.vsSpin : bowler.role === 'PACE' ? p.vsPace : p.bat
+  return 0.45 + ((against || p.bat) / 100) * 1.3
+}
+
+/** How much of his tempo survives this kind of bowling. */
+const tempoAgainst = (p: PlayerSeason, bowler: PlayerSeason) => {
+  const against = bowler.role === 'SPIN' ? p.vsSpin : bowler.role === 'PACE' ? p.vsPace : p.bat
+  if (!against || !p.bat) return 1
+  // Half the difference shows up as scoring rate; the rest as getting out.
+  return 1 + (against / p.bat - 1) * 0.5
+}
 
 /** A bowler's wicket-taking and his containment, each around one. */
 const threatOf = (p: PlayerSeason) => {
@@ -180,6 +213,8 @@ export interface Ball {
   nonStriker: number
   bowler: number
   wicket: { batter: number; how: string; bowler: number | null } | null
+  /** A chance that went down. The batter is still there. */
+  dropped?: boolean
 }
 
 export interface InningsResult {
@@ -236,6 +271,16 @@ export function playInnings(input: InningsInput): InningsResult {
   }))
   const bowl = attack.map(() => ({ balls: 0, runs: 0, wickets: 0, maidens: 0 }))
   const overQuota = attack.map(() => 0)
+  /*
+   * A spell is consecutive overs, and the fourth of them is not the first.
+   *
+   * A bowler kept on tires: his pace drops, his length goes, and the batting
+   * side knows it. Coming off and being brought back later is the whole reason
+   * a captain rotates an attack rather than bowling his best man out in one
+   * go — and without it there was no cost to doing exactly that.
+   */
+  const spell = attack.map(() => 0)
+  const rested = attack.map(() => 0)
 
   const deliveries: Ball[] = []
   let runs = 0
@@ -266,16 +311,34 @@ export function playInnings(input: InningsInput): InningsResult {
       if (lastOver >= 0 && overRuns === 0 && overWickets >= 0) bowl[onNow].maidens++
       overRuns = 0
       overWickets = 0
+      /*
+       * A captain, rather than a rota.
+       *
+       * The best bowlers take the new ball and are held back for the death.
+       * A man in a long spell gets taken off. Someone going for runs is
+       * replaced sooner than someone who is not, and when wickets are wanted
+       * — a new batter in, or a stand getting away — the ball goes to whoever
+       * is likeliest to take one rather than to whoever is next in line.
+       */
+      const newBatter = wickets > 0 && bat[striker].balls <= 2
+      const chasing = target !== undefined
       let pick = -1
       let best = -1
       for (let i = 0; i < attack.length; i++) {
         if (i === onNow && lastOver >= 0) continue
         if (overQuota[i] >= shape.quota) continue
-        // The best bowlers open and are kept for the end; in between, whoever
-        // has most left. Nobody bowls consecutive overs.
         const held = shape.quota - overQuota[i]
-        const late = over >= overs - 4 ? (attack.length - i) * 2.5 : 0
-        const weight = held * 6 + (attack.length - i) * 1.5 + late + rand() * 2
+        const rank = attack.length - i
+        // The new ball and the last four overs belong to the front of the attack.
+        const newBall = over < 2 ? rank * 3 : 0
+        const death = over >= overs - Math.max(2, Math.round(overs * 0.2)) ? rank * 3 : 0
+        // Somebody who has just been hit about is a somebody you take off.
+        const going = bowl[i].balls >= 6 ? -(bowl[i].runs / Math.max(1, bowl[i].balls / 6) - shape.rate) * 0.35 : 0
+        const wantWicket = newBatter || (chasing && wickets <= 2) ? rank * 2 : 0
+        // A long spell is a reason to come off, and a rest a reason to return.
+        const tired = spell[i] * 2.5
+        const fresh = Math.min(3, rested[i]) * 1.2
+        const weight = held * 5 + rank * 1.2 + newBall + death + wantWicket + going - tired + fresh + rand() * 2.4
         if (weight > best) {
           best = weight
           pick = i
@@ -283,6 +346,15 @@ export function playInnings(input: InningsInput): InningsResult {
       }
       if (pick === -1) pick = overQuota.findIndex((n) => n < shape.quota)
       if (pick === -1) pick = 0
+      for (let i = 0; i < attack.length; i++) {
+        if (i === pick) {
+          spell[i] = onNow === pick && lastOver >= 0 ? spell[i] + 1 : 1
+          rested[i] = 0
+        } else {
+          if (spell[i] > 0) spell[i] = 0
+          rested[i]++
+        }
+      }
       onNow = pick
       overQuota[onNow]++
       lastOver = over
@@ -290,7 +362,7 @@ export function playInnings(input: InningsInput): InningsResult {
 
     const bowler = attack[onNow]
     const b = bat[striker]
-    const facing = order[striker]
+    const facingHim = order[striker]
 
     /* ── What this delivery is worth ── */
     const left = maxBalls - balls
@@ -327,24 +399,74 @@ export function playInnings(input: InningsInput): InningsResult {
      * but how long it takes belongs to the format: an opener in a Twenty20
      * has six balls to look at it, and one in a Test has half an hour.
      */
-    const topOrder = facing.role === 'BAT' || facing.role === 'WK'
+    const topOrder = facingHim.role === 'BAT' || facingHim.role === 'WK'
     const settled = Math.min(
       1,
       0.62 + (b.balls / (topOrder ? shape.settle : shape.settle * 0.5)) * 0.38,
     )
-    want *= settled * meanOf(bowler) * suits(bowler, pitch) * surface * dew * cloud * edge
+    /*
+     * A tiring bowler is a bowler being scored off. Three overs on the trot is
+     * where it starts to show and it never gets worse than about a sixth,
+     * which is roughly a run an over.
+     */
+    const legs = 1 + Math.min(0.16, Math.max(0, spell[onNow] - 2) * 0.055)
+    want *= settled * meanOf(bowler) * legs * suits(bowler, pitch) * surface * dew * cloud * edge
+    want *= tempoAgainst(facingHim, bowler)
 
     /* ── Does he get out ── */
     const risk = Math.max(0.6, want / (shape.rate / 6))
     const chance =
       (1 / shape.ballsPerWicket) *
-      (threatOf(bowler) / b.resist) *
+      Math.pow(threatOf(bowler) / facing(facingHim, bowler), shape.class) *
       suits(bowler, pitch) *
       Math.pow(risk, 1.35) *
       (surface > 1 ? 0.88 : 1.06) /
-      (cloud * dew * edge)
+      (cloud * dew * edge * legs)
 
+    /*
+     * A chance is not a wicket.
+     *
+     * Most dismissals are caught, and catches go down — the safest sides in
+     * the world put one on the floor every few matches and the worst do it
+     * every match. Which side is fielding decides how often, from what its
+     * players actually caught, and a dropped catch is a life: the batter
+     * carries on and the bowler wears it.
+     */
     if (rand() < chance) {
+      const hands = attack.length
+        ? attack.reduce((a, p) => a + (p.field || 55), 0) / attack.length
+        : 55
+      /*
+       * Rare, because a life is worth a great deal.
+       *
+       * At one chance in ten the better side lost twelve points of win rate:
+       * it creates most of the chances, so it forfeits most of the drops, and
+       * an attack that keeps beating the bat stops being worth having. Around
+       * one in thirty is what a decent side actually does, and it is enough
+       * for a dropped catch to be a thing that happens rather than a tax on
+       * bowling well.
+       */
+      const held = 0.9 + (hands / 100) * 0.08
+      if (rand() > held && rand() < 0.55) {
+        // Put down. The delivery still happened, so it costs a ball and
+        // usually nothing else.
+        b.balls++
+        balls++
+        bowl[onNow].balls++
+        deliveries.push({
+          over,
+          legal: true,
+          runs: 0,
+          batRuns: 0,
+          extra: null,
+          striker,
+          nonStriker,
+          bowler: onNow,
+          wicket: null,
+          dropped: true,
+        })
+        continue
+      }
       const runOut = rand() < 0.07
       b.out = true
       b.how = runOut ? 'run out' : OUT_TYPES[Math.floor(rand() * OUT_TYPES.length)]

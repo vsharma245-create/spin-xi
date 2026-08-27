@@ -168,6 +168,13 @@ create table squad_players (
   bowl_balls integer  not null check (bowl_balls >= 0),
   bowl_runs  integer  not null check (bowl_runs  >= 0),
 
+  -- What he does against each kind of bowling, and how safe his hands are.
+  -- Every cricket argument about a batter reaches the first of these within a
+  -- minute, and none of it was anywhere in the archive.
+  vs_pace  smallint not null default 50,
+  vs_spin  smallint not null default 50,
+  field    smallint not null default 55,
+
   -- One row per player per squad: a duplicate would bat twice in an innings.
   primary key (squad_id, player_id)
 );
@@ -257,7 +264,8 @@ select
   p.primary_role, p.peak_ovr, p.peak_season, p.peak_format,
   p.main_team, p.team_type, p.seasons as career_seasons,
   sp.role, sp.alt_roles, sp.ovr, sp.bat, sp.bowl, sp.s1, sp.s2, sp.s3,
-  sp.matches, sp.runs, sp.balls, sp.outs, sp.wickets, sp.bowl_balls, sp.bowl_runs
+  sp.matches, sp.runs, sp.balls, sp.outs, sp.wickets, sp.bowl_balls, sp.bowl_runs,
+  sp.vs_pace, sp.vs_spin, sp.field
 from squad_players sp
   join squads  s on s.id  = sp.squad_id
   join players p on p.id  = sp.player_id
