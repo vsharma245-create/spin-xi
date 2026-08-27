@@ -343,20 +343,74 @@ export async function loadBoard(
   limit = 50,
 ): Promise<Board> {
   const account = await signIn().catch(() => null)
-  const board = await api<Board>('rpc/board', {
-    method: 'POST',
-    body: JSON.stringify({
-      p_format: format,
-      p_since: since,
-      p_player: account?.id ?? null,
-      p_limit: limit,
-    }),
-  })
+  try {
+    const board = await api<Board>('rpc/board', {
+      method: 'POST',
+      body: JSON.stringify({
+        p_format: format,
+        p_since: since,
+        p_player: account?.id ?? null,
+        p_limit: limit,
+      }),
+    })
+    if (board) {
+      return {
+        rows: board.rows ?? [],
+        total: board.total ?? 0,
+        me: board.me ?? null,
+        streak: board.streak ?? 0,
+      }
+    }
+  } catch {
+    /*
+     * The function is not there yet.
+     *
+     * The client and the database are pushed by separate hands, and a build
+     * that reaches players before `npm run db:push` does would otherwise show
+     * them a rain delay where the ladder used to be. The old two-request read
+     * still works; it just cannot answer where you stand.
+     */
+  }
+  return oldBoard(format, since, limit)
+}
+
+/** The read this replaced: four hundred seasons, deduplicated in the browser. */
+async function oldBoard(format: Format, since: string | null, limit: number): Promise<Board> {
+  const when = since ? `&created_at=gte.${since}` : ''
+  const seasons = await api<
+    (Omit<LadderRow, 'xp' | 'handle' | 'teamName'> & {
+      team_name: string | null
+      profiles: { handle: string } | null
+    })[]
+  >(
+    `results?select=id,player,format,points,runs,wickets,wins,losses,draws,nrr,perfect,team_name,profiles(handle)` +
+      `&format=eq.${format}&mode=eq.quick&league_id=is.null${when}` +
+      `&order=points.desc&limit=400`,
+  )
+
+  const best = new Map<string, LadderRow>()
+  for (const row of seasons) {
+    if (best.has(row.player)) continue // already have their best: rows arrive sorted
+    best.set(row.player, {
+      ...row,
+      handle: row.profiles?.handle ?? 'Unknown',
+      teamName: row.team_name,
+      xp: null,
+    })
+  }
+  const rows = [...best.values()].slice(0, limit)
+  if (!rows.length) return { rows, total: 0, me: null, streak: 0 }
+
+  const ids = rows.map((r) => r.player).join(',')
+  const careers = await api<{ id: string; xp: number }[]>(
+    `player_stats?select=id,xp&id=in.(${ids})`,
+  ).catch(() => [])
+  const xpOf = new Map(careers.map((c) => [c.id, c.xp]))
   return {
-    rows: board?.rows ?? [],
-    total: board?.total ?? 0,
-    me: board?.me ?? null,
-    streak: board?.streak ?? 0,
+    rows: rows.map((r) => ({ ...r, xp: xpOf.get(r.player) ?? null })),
+    total: best.size,
+    me: null,
+    streak: 0,
   }
 }
 
