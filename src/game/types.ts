@@ -373,6 +373,17 @@ export interface InningsCard {
 
 export interface MatchCard {
   /**
+   * The deliveries as the engine bowled them, where the match was played in
+   * this session.
+   *
+   * Never stored: a result saved to the database keeps the eleven and the seed,
+   * not two hundred and fifty balls. Opening a shared season days later falls
+   * back to reconstructing the innings from the card, which is what `playback`
+   * has always done — but while the match is in memory the replay can show
+   * what actually happened rather than a faithful guess at it.
+   */
+  balls?: import('./engine').PlayedInnings[]
+  /**
    * Set for Tests, where two innings a side is the whole point.
    *
    * The limited-overs fields below describe one innings each, which is all a

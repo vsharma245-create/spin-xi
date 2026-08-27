@@ -95,14 +95,25 @@ function checkMatch(m: MatchResult) {
 
     /* ── Dismissals ── */
     const fell = inn.deliveries.filter((d) => d.wicket)
-    fell.forEach((d, i) => {
-      if (d.wicket!.batter !== batted[i]?.name)
-        fault('wickets fell out of batting order', `${d.wicket!.batter} at ${i + 1}`)
-      if (d.wicket!.how !== 'run out' && d.striker !== i)
-        fault('a batter was dismissed at the wrong end', `${d.wicket!.batter} ${d.wicket!.how}`)
-      if (d.wicket!.how !== 'run out' && d.batRuns > 0)
-        fault('scored off the ball that dismissed them', `${d.wicket!.batter} ${d.batRuns}`)
-    })
+    for (const d of fell) {
+      if (d.batRuns > 0) fault('scored off the ball that dismissed them', `${d.wicket!.batter}`)
+      if (d.runs > 0) fault('runs off a wicket ball', `${d.runs}`)
+    }
+    /*
+     * Counted by name rather than matched one at a time: two men in an eleven
+     * can share a surname, and picking the first of them found one not out
+     * when it was the other who survived.
+     */
+    const outOnCard = new Map<string, number>()
+    for (const b of batted) if (b.out) outOnCard.set(b.name, (outOnCard.get(b.name) ?? 0) + 1)
+    const outInPlay = new Map<string, number>()
+    for (const d of fell) outInPlay.set(d.wicket!.batter, (outInPlay.get(d.wicket!.batter) ?? 0) + 1)
+    for (const [name, n] of outInPlay) {
+      if ((outOnCard.get(name) ?? 0) !== n)
+        fault('the card and the replay disagree about who was out', `${name} ${n}`)
+    }
+    if (fell.length !== batted.filter((b) => b.out).length)
+      fault('dismissals do not match the card', `${fell.length} v ${batted.filter((b) => b.out).length}`)
 
     /* ── Extras ── */
     const extras = inn.deliveries.reduce((a, d) => a + (d.runs - d.batRuns), 0)

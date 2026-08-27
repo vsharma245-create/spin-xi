@@ -1,6 +1,6 @@
 import { clamp } from './draft'
 import { opponentPool, sideLabel } from './opponents'
-import { PITCH_TYPES, playMatch, strengthOf, strengthOnPitch, winProbability } from './sim'
+import { PITCH_TYPES, playMatch, strengthOf, strengthOnPitch } from './sim'
 import { conditionsEdge, conditionsFor, shouldBatFirst } from './conditions'
 import { TROPHY_ROUNDS } from './types'
 import type {
@@ -110,25 +110,27 @@ export function playTrophyTie(
   const conditions = conditionsFor('T20L', pitch, rand)
   const theirCall = shouldBatFirst(conditions)
 
-  let p = winProbability(ours - theirs, 'T20L') - k * ROUND_STEP
-  if (toss?.won) p += toss.batFirst === theirCall ? 0.09 : 0.02
+  /*
+   * An edge in rating points rather than a win probability, because the tie is
+   * now played rather than decided. Each round is harder than the last, which
+   * is what an invitational is.
+   */
+  let edge = ours - theirs - k * ROUND_STEP * 30
+  if (toss?.won) edge += toss.batFirst === theirCall ? 4.5 : 1
   const weBatFirst = toss ? (toss.won ? toss.batFirst : !theirCall) : rand() < 0.5
-  // Worth a little less here than in a league match, because an invitational
-  // is already weighted by how far through the rounds you are.
-  p += conditionsEdge(conditions, weBatFirst) * 0.012
+  edge += conditionsEdge(conditions, weBatFirst)
 
   const match = playMatch(
     k + 1,
     round,
     opponent,
-    rand() < clamp(p, 0.12, 0.82) ? 'W' : 'L',
-    ratings,
     xi,
     'T20L',
     true,
     pitch,
     rand,
     conditions,
+    clamp(edge, -34, 34),
     toss?.won,
     weBatFirst,
   )

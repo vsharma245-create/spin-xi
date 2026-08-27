@@ -1,4 +1,5 @@
-import { buildCard } from './card'
+import { playMatchOut } from './engine'
+import { cardFrom } from './scorecard'
 import { clamp, teamRatings, xiOf } from './draft'
 import { conditionsEdge, conditionsFor, shouldBatFirst } from './conditions'
 import { chemistryEdge, chemistryOf } from './chemistry'
@@ -11,7 +12,7 @@ import type {
   Format,
   MatchResult,
   Opponent,
-  Outcome,
+
   PitchType,
   PlayerSeason,
   RatingMode,
@@ -268,162 +269,69 @@ const FIELD_SIZE: Record<Format, number> = { T20L: 10, ODIWC: 10, T20WC: 8, TEST
 /** Top four make the playoffs everywhere except the Test final, which is top two. */
 export const qualifyCutoff = (format: Format) => (format === 'TEST' ? 2 : 4)
 
-interface Scores {
-  ourRuns: number
-  ourWickets: number
-  theirRuns: number
-  theirWickets: number
-  margin: string
-}
-
-function limitedOversScores(
-  outcome: Outcome,
-  ratings: TeamRatings,
-  format: Format,
-  pitch: PitchType,
-  battedFirst: boolean,
-  rand: () => number,
-): Scores {
-  const p = PROFILE[format]
-  const pitchRuns = pitch === 'BATTING' ? 1.12 : pitch === 'NEUTRAL' ? 1 : 0.9
-  const ourPar = (p.par + (ratings.batting - 80) * p.batWeight) * pitchRuns
-  const theirPar = (p.par + (85 - ratings.bowling) * p.batWeight * 0.8) * pitchRuns
-  const jitter = () => (rand() - 0.5) * p.spread
-  const won = outcome === 'W'
-
-  if (battedFirst) {
-    const ourRuns = Math.round(clamp(ourPar + jitter(), p.lo, p.hi))
-    if (won) {
-      const by = 4 + Math.floor(rand() * (format === 'ODIWC' ? 90 : 46))
-      return {
-        ourRuns,
-        ourWickets: 3 + Math.floor(rand() * 5),
-        theirRuns: Math.max(Math.round(p.lo * 0.6), ourRuns - by),
-        theirWickets: 6 + Math.floor(rand() * 5),
-        margin: `by ${by} run${by === 1 ? '' : 's'}`,
-      }
-    }
-    const w = 1 + Math.floor(rand() * 6)
-    return {
-      ourRuns,
-      ourWickets: 6 + Math.floor(rand() * 5),
-      theirRuns: ourRuns + 1 + Math.floor(rand() * 9),
-      theirWickets: 10 - w,
-      margin: `by ${w} wicket${w === 1 ? '' : 's'}`,
-    }
-  }
-
-  const theirRuns = Math.round(clamp(theirPar + jitter(), p.lo, p.hi))
-  if (won) {
-    const w = 1 + Math.floor(rand() * 7)
-    return {
-      ourRuns: theirRuns + 1 + Math.floor(rand() * 9),
-      ourWickets: 10 - w,
-      theirRuns,
-      theirWickets: 5 + Math.floor(rand() * 5),
-      margin: `by ${w} wicket${w === 1 ? '' : 's'}`,
-    }
-  }
-  const short = 3 + Math.floor(rand() * (format === 'ODIWC' ? 70 : 34))
-  return {
-    ourRuns: Math.max(50, theirRuns - short),
-    ourWickets: 10,
-    theirRuns,
-    theirWickets: 5 + Math.floor(rand() * 5),
-    margin: `by ${short} run${short === 1 ? '' : 's'}`,
-  }
-}
-
-function testScores(
-  outcome: Outcome,
-  ratings: TeamRatings,
-  pitch: PitchType,
-  rand: () => number,
-): Scores {
-  const p = PROFILE.TEST
-  const mult = pitch === 'BATTING' ? 1.15 : pitch === 'NEUTRAL' ? 1 : 0.85
-  const ourRuns = Math.round(
-    clamp((p.par + (ratings.batting - 80) * p.batWeight + (rand() - 0.5) * p.spread) * mult, 150, 660),
-  )
-  const theirRuns = Math.round(
-    clamp((p.par + (85 - ratings.bowling) * p.batWeight * 0.8 + (rand() - 0.5) * p.spread) * mult, 110, 620),
-  )
-
-  let margin: string
-  if (outcome === 'D') {
-    margin = 'DRAWN'
-  } else {
-    const roll = rand()
-    if (roll < 0.22) margin = `by an innings and ${20 + Math.floor(rand() * 160)} runs`
-    else if (roll < 0.6) margin = `by ${30 + Math.floor(rand() * 280)} runs`
-    else {
-      const w = 2 + Math.floor(rand() * 8)
-      margin = `by ${w} wicket${w === 1 ? '' : 's'}`
-    }
-  }
-
-  return {
-    ourRuns,
-    ourWickets: outcome === 'L' ? 10 : 5 + Math.floor(rand() * 5),
-    theirRuns,
-    theirWickets: outcome === 'W' ? 10 : 5 + Math.floor(rand() * 5),
-    margin,
-  }
-}
-
 /** One playable match, scoreboard and scorecard together. */
+/**
+ * A match, played.
+ *
+ * The result used to arrive as an argument. This function was handed a W or an
+ * L, invented a scoreline that fitted it, and asked the card to spread that
+ * total across the eleven — which is why a side of hitters and a side of
+ * anchors made the same runs, and why a prime XI could lose to Scotland.
+ *
+ * Both sides now bat. The engine plays every delivery between the man bowling
+ * and the man facing, and the outcome is read off the second innings: they got
+ * there or they did not. `edge` carries everything that is not the eleven —
+ * the surface, the toss, the dew, how well the side knows itself, the handicap
+ * the player chose — as an advantage applied to deliveries rather than as a
+ * weight on a coin.
+ */
 export function playMatch(
   no: number,
   round: string,
   opponent: Opponent,
-  outcome: Outcome,
-  ratings: TeamRatings,
   xi: PlayerSeason[],
   format: Format,
   knockout: boolean,
   pitch: PitchType,
   rand: () => number,
   conditions: Conditions,
+  edge: number,
   tossWon?: boolean,
   forcedBatFirst?: boolean,
 ): MatchResult {
   const battedFirst = forcedBatFirst ?? rand() < 0.5
-  const s =
-    format === 'TEST'
-      ? testScores(outcome, ratings, pitch, rand)
-      : limitedOversScores(outcome, ratings, format, pitch, battedFirst, rand)
-
-  const { card, hero } = buildCard({
+  const played = playMatchOut({
     xi,
+    them: opponent.players,
     format,
     pitch,
-    outcome,
-    battedFirst,
-    ourRuns: s.ourRuns,
-    ourWickets: s.ourWickets,
-    theirRuns: s.theirRuns,
-    theirWickets: s.theirWickets,
-    opponent,
-    margin: s.margin,
+    conditions,
     rand,
+    battedFirst,
+    // A rating point is worth about half a per cent a delivery, which over a
+    // hundred and twenty of them is a side playing above itself.
+    edge: 1 + Math.max(-0.22, Math.min(0.22, edge * 0.0055)),
   })
 
-  const label = `${opponent.name} ${opponent.season}`
+  const { card, hero } = cardFrom(played, opponent, format, rand)
 
-  const line = (runs: number, wickets: number) =>
-    format === 'TEST'
-      ? `${runs} & ${Math.round(runs * (0.45 + rand() * 0.5))}`
-      : `${runs}/${wickets}`
+  /** "186/4", or for a Test the innings written out in order. */
+  const line = (ours: boolean) => {
+    const innings = played.innings.filter((i) => i.ours === ours)
+    if (format === 'TEST') return innings.map((i) => String(i.runs)).join(' & ')
+    const only = innings[0]
+    return only ? `${only.runs}/${only.wickets}` : '0/0'
+  }
 
   return {
     no,
     round,
-    opponent: label,
+    opponent: `${opponent.name} ${opponent.season}`,
     opponentKey: opponent.teamKey,
-    outcome,
-    margin: s.margin,
-    us: line(s.ourRuns, s.ourWickets),
-    them: line(s.theirRuns, s.theirWickets),
+    outcome: played.outcome,
+    margin: played.margin,
+    us: line(true),
+    them: line(false),
     battedFirst,
     knockout,
     pitch,
@@ -607,32 +515,23 @@ export function startRun(
       strengthOnPitch(strengthOf(them.ratings), them.ratings, them.attack, pitch) +
       conditionsEdge(conditions, weBatFirst) +
       chemEdge
-    const pWin = winProbability(edge, format, ratingMode)
-    const pDraw = t.draws ? drawProbability(scaledEdge(edge, format, ratingMode)) : 0
-
-    const r = rand()
-    let outcome: Outcome
-    if (t.draws) {
-      if (r < pWin * (1 - pDraw)) outcome = 'W'
-      else if (r < pWin * (1 - pDraw) + pDraw) outcome = 'D'
-      else outcome = 'L'
-    } else {
-      outcome = r < pWin ? 'W' : 'L'
-    }
-
+    /*
+     * No coin. The edge goes to the engine as an advantage per delivery and
+     * the two sides play it out; whether this is a win is something the second
+     * innings decides, along with by how much and off whose bowling.
+     */
     group.push(
       playMatch(
         i + 1,
         `MATCH ${String(i + 1).padStart(2, '0')}`,
         them,
-        outcome,
-        ratings,
         xi,
         format,
         false,
         pitch,
         rand,
         conditions,
+        edge,
         undefined,
         weBatFirst,
       ),
@@ -738,22 +637,17 @@ export function playKnockout(
   const weBatFirst = toss ? (toss.won ? toss.batFirst : !theirCall) : rand() < 0.5
   edge += conditionsEdge(spec.conditions, weBatFirst)
 
-  const pWin = winProbability(edge, format, run.ratingMode)
-  // Knockouts must produce a result, so a draw is re-rolled.
-  const outcome: Outcome = rand() < pWin ? 'W' : 'L'
-
   const match = playMatch(
     t.group + k + 1,
     spec.round,
     spec.opponent,
-    outcome,
-    run.ratings,
     run.xi,
     format,
     true,
     spec.pitch,
     rand,
     spec.conditions,
+    edge,
     toss?.won,
     weBatFirst,
   )

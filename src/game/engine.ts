@@ -378,7 +378,7 @@ export function playInnings(input: InningsInput): InningsResult {
     }
 
     /* ── Extras ── */
-    if (rand() < 0.028) {
+    if (rand() < 0.021) {
       const noBall = rand() < 0.3
       const give = 1 + (rand() < 0.08 ? 4 : 0)
       runs += give
@@ -403,7 +403,7 @@ export function playInnings(input: InningsInput): InningsResult {
     const scored = shot(want, rand)
     let extra: Ball['extra'] = null
     let extraRuns = 0
-    if (scored === 0 && rand() < 0.022) {
+    if (scored === 0 && rand() < 0.014) {
       extraRuns = rand() < 0.85 ? 1 : 2
       extra = rand() < 0.45 ? 'b' : 'lb'
       extras += extraRuns
