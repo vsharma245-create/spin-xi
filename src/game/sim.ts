@@ -1,4 +1,5 @@
-import { playMatchOut } from './engine'
+import { playMatchOut, updateForm } from './engine'
+import type { Form } from './engine'
 import { cardFrom } from './scorecard'
 import { clamp, teamRatings, xiOf } from './draft'
 import { conditionsEdge, conditionsFor, shouldBatFirst } from './conditions'
@@ -296,6 +297,7 @@ export function playMatch(
   rand: () => number,
   conditions: Conditions,
   edge: number,
+  form: Form | undefined,
   tossWon?: boolean,
   forcedBatFirst?: boolean,
 ): MatchResult {
@@ -311,7 +313,10 @@ export function playMatch(
     // A rating point is worth about half a per cent a delivery, which over a
     // hundred and twenty of them is a side playing above itself.
     edge: 1 + Math.max(-0.22, Math.min(0.22, edge * 0.0055)),
+    form,
   })
+  // A hundred pulls a man out of a trough; three failures put him in one.
+  if (form) updateForm(form, played.innings)
 
   const { card, hero } = cardFrom(played, opponent, format, rand)
 
@@ -444,6 +449,8 @@ function buildTable(
 /* ── Stepwise run ────────────────────────────────────────────────────────── */
 
 export interface Run {
+  /** How each man is going, moved by every match of the season so far. */
+  form: Form
   ratings: TeamRatings
   /** Batting order, used to write every scorecard. */
   xi: PlayerSeason[]
@@ -494,6 +501,16 @@ export function startRun(
    * players who have spent years in the same dressing rooms are worth a little
    * more than eleven strangers of the same rating.
    */
+  /*
+   * Form, carried the length of the season.
+   *
+   * A season is not eleven players at their average eleven times over.
+   * Somebody is in the form of his life by the sixth game and somebody has
+   * not middled it since the first, and both of those come out of what has
+   * actually happened rather than out of a dice roll before each match.
+   */
+  const form: Form = new Map()
+
   const chemistry = chemistryOf(xi)
   const chemEdge = chemistryEdge(chemistry)
 
@@ -532,6 +549,7 @@ export function startRun(
         rand,
         conditions,
         edge,
+        form,
         undefined,
         weBatFirst,
       ),
@@ -567,6 +585,7 @@ export function startRun(
     ? t.knockouts.map((round, k) => {
         const pitch = PITCH_TYPES[Math.floor(rand() * PITCH_TYPES.length)]
         return {
+    form,
         round,
         pitch,
         conditions: conditionsFor(format, pitch, rand),
@@ -575,6 +594,7 @@ export function startRun(
     : []
 
   return {
+    form,
     ratings,
     ratingMode,
     xi,
@@ -648,6 +668,7 @@ export function playKnockout(
     rand,
     spec.conditions,
     edge,
+    run.form,
     toss?.won,
     weBatFirst,
   )

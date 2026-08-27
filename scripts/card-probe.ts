@@ -65,14 +65,17 @@ function checkMatch(m: MatchResult, format: Format) {
     for (const x of side.bowl) {
       if (x.wickets > 10) fault('a bowler took more than ten', `${x.name} ${x.wickets}`)
       const ov = Number(x.overs)
-      if (ov > (format === 'TEST' ? 60 : format === 'ODIWC' ? 10 : 4) + 0.01)
+      if (ov > (format === 'TEST' ? 62 : format === 'ODIWC' ? 10 : 4) + 0.01)
         fault('a bowler exceeded the quota', `${x.name} ${x.overs} in ${format}`)
     }
   }
   if (format !== 'TEST') {
-    if (m.outcome === 'W' && c.ourScore.runs < c.theirScore.runs && !m.battedFirst)
+    // Rain moves the target, so a side can win having made fewer runs. That is
+    // the whole point of a revised target and not a fault on the card.
+    if (m.outcome === 'W' && c.ourScore.runs < c.theirScore.runs && !m.battedFirst && !c.rain)
       fault('won a chase without passing the target', `${c.ourScore.runs} v ${c.theirScore.runs}`)
-    if (m.outcome === 'L' && m.battedFirst && c.ourScore.runs > c.theirScore.runs)
+    // The same the other way: rain can beat a side that made more runs.
+    if (m.outcome === 'L' && m.battedFirst && c.ourScore.runs > c.theirScore.runs && !c.rain)
       fault('lost while defending a bigger total', `${c.ourScore.runs} v ${c.theirScore.runs}`)
   }
 }

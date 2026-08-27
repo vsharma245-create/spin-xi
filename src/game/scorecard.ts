@@ -239,7 +239,10 @@ export function cardFrom(
     // The first innings' extras, for the same reason as the score above.
     ourExtras: first?.extras ?? 0,
     theirExtras: firstTheirs?.extras ?? 0,
-    moments: momentsOf(match),
+    rain: match.rain,
+    moments: match.rain
+      ? [{ over: '—', text: match.rain.said, kind: 'neutral' as const }, ...momentsOf(match)]
+      : momentsOf(match),
     summary:
       match.outcome === 'D'
         ? `Drawn · ${hero.name} ${hero.line}`

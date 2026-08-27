@@ -420,6 +420,8 @@ export interface MatchCard {
   theirExtras: number
   /** Chronological beats — the story of the match in five or six lines. */
   moments: { over: string; text: string; kind: 'good' | 'bad' | 'neutral' }[]
+  /** Set where rain shortened the chase and moved the target. */
+  rain?: { lost: number; target: number | null; said: string } | null
   /** One-line summary shown in the ticker before the card is opened. */
   summary: string
   /** Opposition's danger man — a real player from that squad. */

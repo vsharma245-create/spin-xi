@@ -131,6 +131,8 @@ export function playTrophyTie(
     rand,
     conditions,
     clamp(edge, -34, 34),
+    // An invitational is three ties, which is not long enough for form.
+    undefined,
     toss?.won,
     weBatFirst,
   )

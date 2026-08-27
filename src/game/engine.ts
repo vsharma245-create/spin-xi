@@ -57,7 +57,7 @@ const SHAPE: Record<Format, Shape> = {
   // 270 off 50 is 5.4; seven down over 300 balls.
   ODIWC: { overs: 50, settle: 16, ballsPerWicket: 43, rate: 5.4, quota: 10, death: 1.45, class: 1.55 },
   // A day's play: 90 overs at a shade over three, and about six wickets.
-  TEST: { overs: 150, settle: 26, ballsPerWicket: 80, rate: 3.3, quota: 38, death: 1, class: 1.45 },
+  TEST: { overs: 150, settle: 26, ballsPerWicket: 80, rate: 3.3, quota: 60, death: 1, class: 1.45 },
 }
 
 /* ── Reading a player ────────────────────────────────────────────────────── */
@@ -233,6 +233,44 @@ export interface InningsResult {
 
 const OUT_TYPES = ['b', 'lbw', 'c keeper', 'c mid-off', 'c deep', 'st']
 
+/**
+ * How each man is going, this week.
+ *
+ * A season is not eleven players at their season average eleven times over.
+ * Somebody is in the form of his life and somebody cannot buy a run, and it
+ * moves — a hundred pulls a man out of a trough and three failures put him in
+ * one. Keyed by player, carried between matches, and worth about a sixth
+ * either way, which is enough to be felt and not enough to overturn who is
+ * actually good.
+ */
+export type Form = Map<string, number>
+
+export const formOf = (form: Form | undefined, p: PlayerSeason) => form?.get(p.id) ?? 1
+
+/** Read the match just played and move everybody's form toward it. */
+export function updateForm(form: Form, innings: PlayedInnings[]): void {
+  for (const inn of innings) {
+    inn.bat.forEach((b, i) => {
+      if (!b.came || b.balls < 3) return
+      const p = inn.order[i]
+      // Measured against what a man of his rating would expect to make.
+      const par = Math.max(8, (p.bat / 100) * 34)
+      const did = Math.min(2.2, b.runs / par)
+      const now = formOf(form, p)
+      form.set(p.id, Math.max(0.84, Math.min(1.18, now * 0.75 + (0.9 + did * 0.13) * 0.25)))
+    })
+    inn.attack.forEach((_, i) => {
+      const f = inn.bowl[i]
+      if (!f || f.balls < 12) return
+      const p = inn.attack[i]
+      const economy = f.runs / (f.balls / 6)
+      const good = f.wickets * 1.4 - (economy - 7) * 0.16
+      const now = formOf(form, p)
+      form.set(p.id, Math.max(0.84, Math.min(1.18, now * 0.75 + (0.97 + good * 0.045) * 0.25)))
+    })
+  }
+}
+
 export interface InningsInput {
   batting: PlayerSeason[]
   attack: PlayerSeason[]
@@ -250,6 +288,8 @@ export interface InningsInput {
    * and 1.05 is a side playing five per cent above itself.
    */
   edge?: number
+  /** How each man is going, carried across the season. */
+  form?: Form
 }
 
 export function playInnings(input: InningsInput): InningsResult {
@@ -260,15 +300,21 @@ export function playInnings(input: InningsInput): InningsResult {
   const edge = input.edge ?? 1
 
   const order = batting
-  const bat = order.map((p) => ({
-    runs: 0,
-    balls: 0,
-    out: false,
-    how: 'not out',
-    came: false,
-    tempo: tempoOf(p),
-    resist: resistOf(p),
-  }))
+  const bat = order.map((p) => {
+    const f = formOf(input.form, p)
+    return {
+      runs: 0,
+      balls: 0,
+      out: false,
+      how: 'not out',
+      came: false,
+      // A man in nick middles it and a man out of it does not, so form shows
+      // up as both — scoring more freely and getting out less.
+      tempo: tempoOf(p) * (1 + (f - 1) * 0.45),
+      resist: resistOf(p) * f,
+      form: f,
+    }
+  })
   const bowl = attack.map(() => ({ balls: 0, runs: 0, wickets: 0, maidens: 0 }))
   const overQuota = attack.map(() => 0)
   /*
@@ -387,9 +433,28 @@ export function playInnings(input: InningsInput): InningsResult {
     let want: number
     if (target !== undefined) {
       const need = (target - runs) / Math.max(1, left)
-      const desperation = Math.min(1.9, Math.max(0.75, need / (shape.rate / 6)))
-      const careful = 0.55 + (wicketsInHand / 10) * 0.55
-      want = (shape.rate / 6) * desperation * Math.min(1.35, careful + 0.35) * b.tempo
+      const asking = need / (shape.rate / 6)
+      /*
+       * Batting out a draw.
+       *
+       * A fourth innings is not always a chase. Four hundred to get with a day
+       * left is not a target, it is a warning, and a side in that position
+       * blocks — which is the only reason a Test can end in a draw at all.
+       * Chasing it regardless took draws from a third of matches to one in
+       * thirty. The shorter games have no such option: there is nothing to
+       * save and the only way out is through.
+       */
+      // A rate a fifth above par with a session or more to survive is enough
+      // to stop trying to win. Sides shut up shop earlier than they admit.
+      const hopeless = format === 'TEST' && asking > 1.18 && left > 45
+      if (hopeless) {
+        // Play for the close: score slowly, take nothing on.
+        want = (shape.rate / 6) * 0.62 * Math.min(1, b.tempo)
+      } else {
+        const desperation = Math.min(1.9, Math.max(0.75, asking))
+        const careful = 0.55 + (wicketsInHand / 10) * 0.55
+        want = (shape.rate / 6) * desperation * Math.min(1.35, careful + 0.35) * b.tempo
+      }
     } else {
       want = (shape.rate / 6) * phase * b.tempo
     }
@@ -411,13 +476,13 @@ export function playInnings(input: InningsInput): InningsResult {
      */
     const legs = 1 + Math.min(0.16, Math.max(0, spell[onNow] - 2) * 0.055)
     want *= settled * meanOf(bowler) * legs * suits(bowler, pitch) * surface * dew * cloud * edge
-    want *= tempoAgainst(facingHim, bowler)
+    want *= tempoAgainst(facingHim, bowler) * formOf(input.form, bowler) ** -0.6
 
     /* ── Does he get out ── */
     const risk = Math.max(0.6, want / (shape.rate / 6))
     const chance =
       (1 / shape.ballsPerWicket) *
-      Math.pow(threatOf(bowler) / facing(facingHim, bowler), shape.class) *
+      Math.pow(threatOf(bowler) / (facing(facingHim, bowler) * b.form), shape.class) *
       suits(bowler, pitch) *
       Math.pow(risk, 1.35) *
       (surface > 1 ? 0.88 : 1.06) /
@@ -585,8 +650,18 @@ export interface PlayedInnings extends InningsResult {
   target: number | null
 }
 
+/** What the weather did, where it did anything. */
+export interface Interruption {
+  /** Overs the innings lost to it. */
+  lost: number
+  /** The revised target, where one was set. */
+  target: number | null
+  said: string
+}
+
 export interface PlayedMatch {
   innings: PlayedInnings[]
+  rain: Interruption | null
   ourRuns: number
   ourWickets: number
   theirRuns: number
@@ -621,6 +696,8 @@ export function playMatchOut(input: {
   rand: () => number
   battedFirst: boolean
   edge?: number
+  /** Carried across the season, and moved by what happens here. */
+  form?: Form
 }): PlayedMatch {
   const { xi, them, format, pitch, conditions, rand, battedFirst } = input
   const edge = input.edge ?? 1
@@ -643,14 +720,48 @@ export function playMatchOut(input: {
       // Our advantage helps us bat and hurts them; it is the same number seen
       // from either end.
       edge: ours ? edge : 1 / edge,
+      form: input.form,
     })
     return { ...r, ours, label, order: ours ? ourOrder : theirOrder, attack: ours ? theirAttack : ourAttack, target }
   }
 
   if (format === 'TEST') return test(bat, battedFirst)
 
+  /*
+   * Rain.
+   *
+   * Roughly one limited-overs match in nine is interrupted, and an overcast
+   * afternoon is likelier than a clear one. When it comes down after the first
+   * innings the side batting second gets fewer overs and a target adjusted for
+   * them — more runs per over than the first side needed, because wickets in
+   * hand are worth more when there is less time to use them. That is the whole
+   * idea behind Duckworth-Lewis and it is the part a viewer feels.
+   */
+  const wet = conditions.sky === 'OVERCAST' ? 0.16 : conditions.sky === 'CLEAR' ? 0.05 : 0.09
+  const rains = rand() < wet
+  const overs = SHAPE[format].overs
+  const cut = rains ? Math.max(2, Math.round(overs * (0.12 + rand() * 0.33))) : 0
+
   const first = bat(battedFirst, 'FIRST INNINGS', null)
-  const second = bat(!battedFirst, 'SECOND INNINGS', first.runs + 1)
+  let revised: number | null = null
+  let rain: Interruption | null = null
+  if (cut > 0) {
+    const left = overs - cut
+    /*
+     * Resources, roughly. A side with all ten wickets and half its overs has
+     * far more than half its scoring left in hand, so the target per over goes
+     * up rather than scaling straight down.
+     */
+    const share = Math.pow(left / overs, 0.86)
+    revised = Math.max(1, Math.round(first.runs * share) + 1)
+    rain = {
+      lost: cut,
+      target: revised,
+      said: `Rain took ${cut} over${cut === 1 ? '' : 's'}. Revised target ${revised} from ${left}.`,
+    }
+  }
+
+  const second = bat(!battedFirst, 'SECOND INNINGS', revised ?? first.runs + 1, cut > 0 ? overs - cut : undefined)
 
   const ours = battedFirst ? first : second
   const theirs = battedFirst ? second : first
@@ -658,12 +769,14 @@ export function playMatchOut(input: {
   // Whoever batted second won if they got there; whoever batted first won if
   // they did not.
   const weWon = battedFirst ? !chasedDown : chasedDown
+  const short = (revised ?? first.runs + 1) - 1 - second.runs
   const by = chasedDown
-    ? `by ${10 - second.wickets} wicket${10 - second.wickets === 1 ? '' : 's'}`
-    : `by ${first.runs - second.runs} run${first.runs - second.runs === 1 ? '' : 's'}`
+    ? `by ${10 - second.wickets} wicket${10 - second.wickets === 1 ? '' : 's'}${revised ? ' (DLS)' : ''}`
+    : `by ${short} run${short === 1 ? '' : 's'}${revised ? ' (DLS)' : ''}`
 
   return {
     innings: [first, second],
+    rain,
     ourRuns: ours.runs,
     ourWickets: ours.wickets,
     theirRuns: theirs.runs,
@@ -685,19 +798,46 @@ function test(
   bat: (ours: boolean, label: string, target: number | null, overs?: number) => PlayedInnings,
   battedFirst: boolean,
 ): PlayedMatch {
-  const declare = 145
-  const one = bat(battedFirst, 'FIRST INNINGS', null, declare)
-  const two = bat(!battedFirst, 'FIRST INNINGS', null, declare)
-  const lead = one.runs - two.runs
+  /*
+   * A captain declares; he does not run out of overs.
+   *
+   * The first innings used to stop at a hard cap, which is a clock rather than
+   * a decision. A side bats until it has enough — long, because a first-innings
+   * total is the whole match — and then the second innings is bounded by what
+   * is left of five days rather than by a number chosen in advance.
+   */
+  const DAY = 90
+  const MATCH = DAY * 5
+  const one = bat(battedFirst, 'FIRST INNINGS', null, 160)
+  const two = bat(!battedFirst, 'FIRST INNINGS', null, Math.max(60, MATCH - one.balls / 6 - 130))
 
-  // An innings defeat: they followed on and still could not make up the lead.
-  const three = bat(battedFirst, 'SECOND INNINGS', null, 120)
+  const lead = one.runs - two.runs
+  const spent = (one.balls + two.balls) / 6
+
+  /*
+   * The declaration.
+   *
+   * Enough runs to be safe and enough time to bowl them out, and the two pull
+   * against each other: every over batted is an over not available to take ten
+   * wickets in. A lead of three hundred is plenty, and a side that is already
+   * far ahead bats on for less time than one scraping level.
+   */
+  const wantLead = Math.max(180, 320 - Math.max(0, lead))
+  const timeLeft = Math.max(0, MATCH - spent)
+  // Leave at least a session and a half to bowl in, and never bat past what is
+  // there. A declaration is a judgement about the clock above all.
+  // Leave a little under two sessions to bowl in. A captain who declares with
+  // a whole day left has usually made a mistake, and one who leaves an hour is
+  // playing for the draw himself.
+  const batOn = Math.max(12, Math.min(timeLeft - 42, wantLead / 3.1))
+  const three = bat(battedFirst, 'SECOND INNINGS', null, Math.round(batOn))
+
   const target = one.runs + three.runs - two.runs + 1
   /*
-   * Time, not overs. Whatever is left of the match after three innings is what
-   * the fourth gets, and a side can bat out a draw rather than lose.
+   * Whatever is left of the match, which is what makes a Test drawable: a side
+   * can bat out time rather than chase, and often should.
    */
-  const left = Math.max(40, 420 - (one.balls + two.balls + three.balls) / 6)
+  const left = Math.max(15, MATCH - spent - three.balls / 6)
   const four = bat(!battedFirst, 'SECOND INNINGS', target, Math.round(left))
 
   const ourRuns = battedFirst ? one.runs + three.runs : two.runs + four.runs
@@ -716,10 +856,10 @@ function test(
     outcome = 'D'
     margin = 'DRAWN'
   }
-  void lead
 
   return {
     innings: [one, two, three, four],
+    rain: null,
     ourRuns,
     ourWickets: battedFirst ? one.wickets + three.wickets : two.wickets + four.wickets,
     theirRuns,
