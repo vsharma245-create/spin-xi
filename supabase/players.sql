@@ -298,3 +298,108 @@ begin
     grant select on player_stats, player_splits, ladder, daily_board to authenticated;
   end if;
 end $$;
+
+/* ── Where you stand, and how long you have kept it up ───────────────────── */
+
+/**
+ * Consecutive days on the daily, counted back from the most recent one played.
+ *
+ * Zero unless that most recent day is today or yesterday — a streak you broke
+ * in March is not a streak, and showing it as one would be the sort of number
+ * that teaches people to ignore numbers.
+ *
+ * The run is found by the distance each day sits from the newest: for days in
+ * descending order an unbroken streak has the nth day exactly n-1 days back,
+ * and the first day that fails can never come back into line, because it only
+ * falls further behind.
+ */
+create or replace function daily_streak(p_player uuid)
+returns int
+language sql stable as $$
+  with days as (
+    select distinct r.daily_key as d
+    from results r
+    where r.player = p_player and r.mode = 'daily' and r.daily_key is not null
+  ), latest as (
+    select max(d) as top from days
+  )
+  select case
+    when (select l.top from latest l) is null then 0
+    when (select l.top from latest l) < current_date - 1 then 0
+    else (
+      select count(*)::int
+      from (select d, row_number() over (order by d desc) as rn from days) x, latest l
+      where x.d = l.top - (x.rn - 1)::int
+    )
+  end;
+$$;
+
+/**
+ * A whole page of the ladder, in one answer.
+ *
+ * This used to be two requests and four hundred rows: every season in the
+ * format, ordered by points, downloaded so the browser could throw away seven
+ * out of eight of them and keep one per player — and then a second request for
+ * everybody's experience. Postgres has had DISTINCT ON for this the whole time.
+ *
+ * Rank comes free once the rows are numbered, which is the point. A player in
+ * three hundred and forty-seventh opened the ladder and found a list of
+ * strangers with nothing about themselves on it anywhere; asking separately
+ * would have meant a third request to fix that.
+ *
+ * One season a player, their best, so a hundred attempts do not out-rank one
+ * good one. Ties go to whoever got there first.
+ */
+create or replace function board(
+  p_format text,
+  p_since timestamptz,
+  p_player uuid,
+  p_limit int default 50
+) returns jsonb
+language sql stable as $$
+  with best as (
+    select distinct on (r.player)
+      r.id, r.player, r.points, r.runs, r.wickets, r.wins, r.losses, r.draws,
+      r.nrr, r.perfect, r.team_name, r.created_at
+    from results r
+    where r.format = p_format
+      and r.mode = 'quick'
+      and r.league_id is null
+      and (p_since is null or r.created_at >= p_since)
+    order by r.player, r.points desc
+  ), ranked as (
+    select b.*, row_number() over (order by b.points desc, b.created_at asc) as rn
+    from best b
+  )
+  select jsonb_build_object(
+    'rows', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', x.id, 'player', x.player, 'handle', p.handle, 'xp', s.xp,
+        'teamName', x.team_name, 'points', x.points, 'runs', x.runs,
+        'wickets', x.wickets, 'wins', x.wins, 'losses', x.losses,
+        'draws', x.draws, 'nrr', x.nrr, 'perfect', x.perfect
+      ) order by x.rn)
+      from ranked x
+        join profiles p on p.id = x.player
+        left join player_stats s on s.id = x.player
+      where x.rn <= p_limit
+    ), '[]'::jsonb),
+    'total', (select count(*)::int from ranked),
+    'me', (
+      select jsonb_build_object('rank', x.rn, 'points', x.points, 'id', x.id)
+      from ranked x where x.player = p_player
+    ),
+    'streak', daily_streak(p_player)
+  );
+$$;
+
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    grant execute on function board(text, timestamptz, uuid, int) to anon;
+    grant execute on function daily_streak(uuid) to anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    grant execute on function board(text, timestamptz, uuid, int) to authenticated;
+    grant execute on function daily_streak(uuid) to authenticated;
+  end if;
+end $$;

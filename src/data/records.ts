@@ -31,8 +31,12 @@ export interface Stats {
 }
 
 export interface LadderRow {
+  /** The season itself, so it can be opened and looked at. */
+  id: string
   player: string
   handle: string
+  /** What they called their side. Stored since the first result, never shown. */
+  teamName: string | null
   /** Career experience, so a board can show what level each player is. */
   xp: number | null
   format: Format
@@ -293,49 +297,146 @@ export function startOfToday(): string {
 }
 
 /**
- * A tournament board over a window of time.
+ * Monday, so that a week is a week rather than a rolling seven days.
  *
- * The `ladder` view answers "best ever", which cannot also answer "best
- * today", so this reads the seasons themselves and keeps each player's best
- * one. Daily runs are left out: everybody drafts from the same squads that
- * day, so it is a different contest and has its own board.
- *
- * Two round trips — the seasons, then the career experience of whoever is on
- * the board, which lives in a view the seasons cannot be joined to. The row
- * cap is deliberate; a board nobody scrolls does not need every season ever
- * played, and the alternative is DISTINCT ON, which PostgREST cannot express.
+ * An all-time board is decided long before most people find it, and a
+ * one-day board is gone before they come back. The week is the one anybody
+ * arriving on a Wednesday can still win.
  */
+export function startOfWeek(): string {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  // getDay() calls Sunday 0; the cricket week, like everyone's, starts Monday.
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+  return d.toISOString()
+}
+
+/**
+ * A page of a tournament board: the rows, where you stand, and your streak.
+ *
+ * It used to be two requests and four hundred rows. Every season in the format
+ * came down ordered by points so the browser could throw away seven out of
+ * eight of them keeping one per player, and then a second request fetched
+ * everybody's experience from a view the seasons could not be joined to.
+ * Postgres has had DISTINCT ON for this the whole time, so it does it, and
+ * fifty rows come back instead of four hundred.
+ *
+ * Rank arrives with them rather than as a third request, which is what makes
+ * it worth showing at all.
+ *
+ * Daily runs are left out: everybody drafts the same squads that day, so it is
+ * a different contest with its own board.
+ */
+export interface Board {
+  rows: LadderRow[]
+  /** How many players are on this board at all. */
+  total: number
+  /** Where you are on it, even when that is far below the last visible row. */
+  me: { rank: number; points: number; id: string } | null
+  /** Consecutive days on the daily, counted back from the last one played. */
+  streak: number
+}
+
 export async function loadBoard(
   format: Format,
   since: string | null,
   limit = 50,
-): Promise<LadderRow[]> {
-  const when = since ? `&created_at=gte.${since}` : ''
-  const seasons = await api<
-    (Omit<LadderRow, 'xp' | 'handle'> & { profiles: { handle: string } | null })[]
-  >(
-    `results?select=player,format,points,runs,wickets,wins,losses,draws,nrr,perfect,profiles(handle)` +
-      `&format=eq.${format}&mode=eq.quick&league_id=is.null${when}` +
-      `&order=points.desc&limit=400`,
-  )
-
-  const best = new Map<string, LadderRow>()
-  for (const row of seasons) {
-    if (best.has(row.player)) continue // already have their best: rows arrive sorted
-    best.set(row.player, { ...row, handle: row.profiles?.handle ?? 'Unknown', xp: null })
+): Promise<Board> {
+  const account = await signIn().catch(() => null)
+  const board = await api<Board>('rpc/board', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_format: format,
+      p_since: since,
+      p_player: account?.id ?? null,
+      p_limit: limit,
+    }),
+  })
+  return {
+    rows: board?.rows ?? [],
+    total: board?.total ?? 0,
+    me: board?.me ?? null,
+    streak: board?.streak ?? 0,
   }
-  const rows = [...best.values()].slice(0, limit)
-  if (!rows.length) return rows
-
-  const ids = rows.map((r) => r.player).join(',')
-  const careers = await api<{ id: string; xp: number }[]>(
-    `player_stats?select=id,xp&id=in.(${ids})`,
-  ).catch(() => [])
-  const xpOf = new Map(careers.map((c) => [c.id, c.xp]))
-  return rows.map((r) => ({ ...r, xp: xpOf.get(r.player) ?? null }))
 }
 
-/** Today's daily, where everyone shared a draw. */
+/**
+ * The eleven somebody actually picked.
+ *
+ * Every season has carried its XI since the first one was saved and nothing
+ * has ever shown it, so a row on the ladder was a name and a number and no
+ * answer to the only question it raises. Results are public by policy; this is
+ * the reading of them.
+ */
+export interface SeasonXI {
+  teamName: string
+  format: Format
+  presetId: string
+  ratingMode: string
+  difficulty: string
+  fromYear: number | null
+  toYear: number | null
+  wins: number
+  losses: number
+  draws: number
+  runs: number
+  wickets: number
+  points: number
+  outcome: string
+  perfect: boolean
+  createdAt: string
+  /** Name, season and role for each of the eleven, in batting order. */
+  xi: { n: string; s: string; r: string }[]
+}
+
+export async function loadSeasonXI(id: string): Promise<SeasonXI | null> {
+  const [row] = await api<
+    {
+      team_name: string
+      format: Format
+      preset_id: string
+      rating_mode: string
+      difficulty: string
+      from_year: number | null
+      to_year: number | null
+      wins: number
+      losses: number
+      draws: number
+      runs: number
+      wickets: number
+      points: number
+      outcome: string
+      perfect: boolean
+      created_at: string
+      xi: ({ n: string; s: string; r: string } | null)[] | null
+    }[]
+  >(
+    `results?select=team_name,format,preset_id,rating_mode,difficulty,from_year,to_year,` +
+      `wins,losses,draws,runs,wickets,points,outcome,perfect,created_at,xi&id=eq.${id}&limit=1`,
+  )
+  if (!row) return null
+  return {
+    teamName: row.team_name,
+    format: row.format,
+    presetId: row.preset_id,
+    ratingMode: row.rating_mode,
+    difficulty: row.difficulty,
+    fromYear: row.from_year,
+    toYear: row.to_year,
+    wins: row.wins,
+    losses: row.losses,
+    draws: row.draws,
+    runs: row.runs,
+    wickets: row.wickets,
+    points: row.points,
+    outcome: row.outcome,
+    perfect: row.perfect,
+    createdAt: row.created_at,
+    // A season saved before the column existed has no eleven to show.
+    xi: (row.xi ?? []).filter((p): p is { n: string; s: string; r: string } => !!p),
+  }
+}
+
 export async function loadDaily(dateKey: string, limit = 50) {
   return api<(LadderRow & { daily_key: string })[]>(
     `daily_board?select=*&daily_key=eq.${dateKey}&order=points.desc&limit=${limit}`,

@@ -2,7 +2,15 @@ import { useState } from 'react'
 import { Ad } from '../components/Ad'
 import { SLOT } from '../components/ads'
 import { Explainer, Screen, SectionLabel } from '../components/ui'
-import { dailyEntrants, loadBoard, loadDaily, loadStats, startOfToday } from '../data/records'
+import { SeasonXIDrawer } from '../components/SeasonXIDrawer'
+import {
+  dailyEntrants,
+  loadBoard,
+  loadDaily,
+  loadStats,
+  startOfToday,
+  startOfWeek,
+} from '../data/records'
 import type { LadderRow } from '../data/records'
 import { useAsync } from '../data/useAsync'
 import { todaysChallenge } from '../data/challenges'
@@ -53,14 +61,25 @@ function Switch<T extends string>({
 export default function Leaderboard() {
   const [board, setBoard] = useState<'TOURNAMENT' | 'DAILY'>('TOURNAMENT')
   const [format, setFormat] = useState<Format>('T20L')
-  const [period, setPeriod] = useState<'ALLTIME' | 'TODAY'>('ALLTIME')
+  /*
+   * Three windows, because two were the wrong two. All-time is decided long
+   * before most people find it and today's is gone before they come back; the
+   * week is the one somebody arriving on a Wednesday can still win.
+   */
+  const [period, setPeriod] = useState<'ALLTIME' | 'WEEK' | 'TODAY'>('ALLTIME')
+  /** A season being looked at, opened from a row. */
+  const [open, setOpen] = useState<{ id: string; handle: string } | null>(null)
   const daily = todaysChallenge()
 
   const t = TOURNAMENTS[format]
   // The daily runs whichever format today's draw is, not whichever tab is open.
   const active: Format = board === 'DAILY' ? daily.format : format
   const ladder = useAsync(
-    () => loadBoard(format, period === 'TODAY' ? startOfToday() : null),
+    () =>
+      loadBoard(
+        format,
+        period === 'TODAY' ? startOfToday() : period === 'WEEK' ? startOfWeek() : null,
+      ),
     [format, period],
   )
   const todays = useAsync(
@@ -72,7 +91,8 @@ export default function Leaderboard() {
   const mine = me.data
 
   const showing = board === 'DAILY' ? todays : ladder
-  const rows = showing.data ?? []
+  const rows: LadderRow[] = board === 'DAILY' ? (todays.data ?? []) : (ladder.data?.rows ?? [])
+  const standing = board === 'DAILY' ? null : (ladder.data ?? null)
 
   const isTest = board === 'DAILY' ? daily.format === 'TEST' : format === 'TEST'
 
@@ -87,7 +107,9 @@ export default function Leaderboard() {
               : `Nobody has played today's draw yet — daily #${daily.number}.`
             : period === 'TODAY'
               ? 'The best tournament seasons played today, ranked on points.'
-              : 'Your best season in each tournament, ranked on points.'}
+              : period === 'WEEK'
+                ? 'The best seasons played since Monday, ranked on points.'
+                : 'Your best season in each tournament, ranked on points.'}
         </p>
       </div>
 
@@ -140,6 +162,7 @@ export default function Leaderboard() {
           <Switch
             options={[
               { key: 'ALLTIME', label: 'All-time' },
+              { key: 'WEEK', label: 'This week' },
               { key: 'TODAY', label: 'Today' },
             ]}
             value={period}
@@ -190,9 +213,12 @@ export default function Leaderboard() {
           const level = levelFromPoints(r.xp ?? 0)
           const perfect = r.losses === 0 && r.draws === 0
           return (
-            <div
+            <button
               key={r.player}
-              className={`flex items-center gap-3 py-2.5 ${you ? '-mx-2 rounded-lg bg-pitch/[0.08] px-2' : ''}`}
+              onClick={() => setOpen({ id: r.id, handle: r.handle })}
+              className={`flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-white/[0.03] ${
+                you ? '-mx-2 rounded-lg bg-pitch/[0.08] px-2' : '-mx-2 rounded-lg px-2'
+              }`}
             >
               <span
                 className={`tnum w-6 shrink-0 text-[12px] font-black ${
@@ -237,7 +263,12 @@ export default function Leaderboard() {
                     {r.wins}–{r.losses}
                     {isTest ? `–${r.draws}` : ''} · {r.runs.toLocaleString()} runs · {r.wickets} wkts
                   </span>
-                  <span className="hidden sm:inline">{titleForLevel(level)}</span>
+                  {/* The side's own name where they gave it one — it says more
+                      about a season than a level title does, and every result
+                      has carried it since the first one was saved. */}
+                  <span className="hidden sm:inline">
+                    {r.teamName && r.teamName !== 'YOUR XI' ? r.teamName : titleForLevel(level)}
+                  </span>
                 </div>
               </div>
               <span className="tnum hidden w-16 shrink-0 text-right text-[10.5px] font-bold text-moss sm:block">
@@ -250,10 +281,53 @@ export default function Leaderboard() {
               <span className="stat-num w-14 shrink-0 text-right text-[17px] text-cream">
                 {r.points.toLocaleString()}
               </span>
-            </div>
+            </button>
           )
         })}
       </div>
+
+      {/*
+       * Your own line, always.
+       *
+       * The board shows fifty rows. Somebody in three hundred and forty-seventh
+       * used to open it and find a list of strangers with nothing about
+       * themselves anywhere on it, which is a good reason never to open it
+       * again. Hidden only when you are already visible above.
+       */}
+      {standing?.me && !rows.some((r) => r.player === mine?.id) && (
+        <button
+          onClick={() =>
+            standing.me && setOpen({ id: standing.me.id, handle: mine?.handle ?? 'You' })
+          }
+          className="mt-2 flex w-full items-center gap-3 rounded-card border border-pitch/35 bg-pitch/[0.07] px-4 py-3 text-left transition-colors hover:bg-pitch/[0.12]"
+        >
+          <span className="tnum w-6 shrink-0 text-[12px] font-black text-pitch">
+            {standing.me.rank}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-bold text-pitch">You</div>
+            <div className="truncate text-[9.5px] font-semibold uppercase tracking-wider text-moss">
+              {standing.me.rank} of {standing.total.toLocaleString()} · tap to see your XI
+            </div>
+          </div>
+          <span className="stat-num w-14 shrink-0 text-right text-[17px] text-cream">
+            {standing.me.points.toLocaleString()}
+          </span>
+        </button>
+      )}
+
+      {/*
+       * The streak, where there is one. A daily puzzle's whole hold on anybody
+       * is the run they do not want to end.
+       */}
+      {board === 'DAILY' && (ladder.data?.streak ?? 0) > 1 && (
+        <div className="mt-2 rounded-card border border-gold/30 bg-gold/[0.06] px-4 py-2.5 text-center">
+          <span className="display text-[15px] text-gold">
+            {ladder.data?.streak} DAYS RUNNING
+          </span>
+          <p className="mt-0.5 text-[11px] text-moss">Play tomorrow's draw and it keeps going.</p>
+        </div>
+      )}
 
       {mine && !mine.drafts && (
         <p className="mt-4 text-center text-[11px] text-moss">
@@ -292,6 +366,12 @@ export default function Leaderboard() {
           can be recomputed and checked.
         </>
       </Explainer>
+
+      <SeasonXIDrawer
+        id={open?.id ?? null}
+        handle={open?.handle ?? ''}
+        onClose={() => setOpen(null)}
+      />
     </Screen>
   )
 }
