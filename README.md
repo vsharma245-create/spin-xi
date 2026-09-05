@@ -8,6 +8,11 @@ limited random choices *are* the strategy. Play it alone, or against people you
 know: a league everyone drafts into on the same locked rules, or a live draft
 where four of you take turns out of one shared pool.
 
+Every rating is computed from ball-by-ball records of **15,270 matches that were
+actually played**, and every match is simulated one delivery at a time — the
+score is what comes out of them, and so is the result. Nothing is copied from
+another rating system and no result is decided in advance.
+
 Live at **[www.spin-xi.com](https://www.spin-xi.com)**.
 
 ```bash
@@ -90,159 +95,199 @@ strongly drafted XI wins it about **one time in five** and an ordinary one about
   full quota of imports left only Indian squads holding a player you could still
   place — 195 of 882 — so the wheel appeared to stop being random.
 
-## What makes the simulation more than a coin flip
+## The match engine
 
-- **You play real sides.** Every opponent in every mode is a squad-season from
-  the same archive you draft from — MUMBAI INDIANS 2020, PAKISTAN 2022 — with
-  ratings built from its own players. A match is decided by the gap between two
-  rated teams, not by an abstract measure of how good you are. A side is rated on
-  the eleven it would actually pick, by exactly the formula that rates yours.
-- **Every match has weather.** Day, day-night or under lights; clear, humid or heavy
-  overhead; dew settling later when the air is already wet. Drawn once from the same
-  seeded stream as the rest of the match, so the toss, the scoring and the scorecard
-  all describe the same afternoon. The captain who wins the toss reads it — bowl under
-  a heavy sky because the ball moves, bowl if there will be dew because chasing gets
-  easier once the ball is wet — and says why in words. Losing the toss hands that edge
-  over; it used to cost nothing.
-- **An XI that knows itself is worth something.** Not a table of who got on with whom,
-  which would be an opinion typed into the data. Every delivery names the striker and
-  the man at the other end, so the ball-by-ball pass counts how long two players have
-  actually spent at opposite ends: Sangakkara and Jayawardene 15,282 balls, Strauss and
-  Cook 10,277, Sehwag and Gambhir just under eight thousand. 9,455 pairs qualify. An
-  India side carrying Kohli with Rahane, Kohli with Rohit and Sehwag with Gambhir reads
-  91 for understanding; eleven players from eleven countries read 66. Worth about two
-  points of edge — enough to decide a close match, never enough to outweigh who can
-  actually play.
-- **Prime is read on its own ruler.** Everybody at their best is a tighter field than
-  everybody in a given season, so the same superiority shows up as fewer rating points
-  — seventeen on season form against twelve on prime, measured against the World Cup
-  field. Read through one slope that turned prime into a coin flip: an XI rated 94 went
-  out to Scotland because nine points of edge is worth 64%, and fourteen matches of 64%
-  is a bad fortnight away from a losing record. The conversion knows which ruler it is
-  reading, and the same conversion decides Test draws.
-- Every match is played on one of four surfaces — batting paradise, pace deck,
-  spin track, neutral — and the pitch decides which of your ratings matter, for
-  *both* teams. A spin-heavy XI eats turners and struggles on green decks.
-- Winning a knockout toss and reading the surface correctly is worth a real edge.
-- Test cricket resolves to win/draw/loss, and dominant sides force results while
-  evenly matched ones drift to draws.
-- You finish in a **table** of eight to ten real sides. Top four make the
-  knockouts (top two for the Test final), top three earn a Champions Trophy
-  invitation.
-- Opponents are rated from their own roster, best eleven first — so a side listed
-  with a whole season's churn is not rated below the same side listed with a
-  settled team, which would say something about record-keeping rather than about
-  cricket.
+Every delivery is bowled. The score is what comes out of them, and so is the
+result.
 
-Difficulty is measured, not guessed — 960 simulated seasons at a time. A
-strongly drafted XI wins about **70%** of its T20 League matches in season form
-and **57%** in prime, where the whole field is at its peak too; an ordinary draft
-sits near 50%. A perfect unbeaten run is genuinely rare.
+That is the whole design, and it was not the first one. The engine used to be
+handed a win or a loss, invent a scoreline that fitted, and ask the card to
+spread that total across the eleven — the direction of causation backwards, and
+everything wrong with it followed from that. Two sides with the same average
+made the same runs, so an eleven built around Gayle and de Villiers scored
+exactly what an eleven of accumulators scored. The bowler at the other end never
+entered into it. And because the result came first, a side of the best players
+in the archive could lose to a modest one for no reason a viewer could see.
 
-Three things had to be true for that. Both sides are rated by **the same
-formula** — yours was measured on its top seven batters and theirs on a top four
-then discounted, two yardsticks that disagreed by twelve points. Each opponent is
-drawn as the strongest of four of its seasons, because you pick every player in
-his best year and a side taken from one random season was beaten before the toss.
-And a rating edge converts to results at a **format-specific rate**: no team in
-any T20 league wins 80% of its games, while a Test gives quality five days to
-assert itself.
+### What is decided on each ball
 
-That curve is now the only one. The league table was playing your rivals off a
-separate hard-coded slope, so their records spread further apart than yours
-could and the position you finished in was measured against a different game;
-the Champions Trophy had a third, more than twice as steep, so a strong side was
-more certain of a trophy tie than of an ordinary league match against a weaker
-opponent. Two competitions cannot disagree about what a five-point advantage is
-worth.
+- **Who is bowling.** Quotas, no consecutive overs, and a captain rather than a
+  rota: the best bowlers take the new ball and are held for the death, a man
+  being hit about is taken off sooner than one who is not, and when wickets are
+  wanted — a new batter in, a chase with all ten standing — the ball goes to
+  whoever is likeliest to take one.
+- **The bowler against the batter.** His threat and his economy against the
+  batter's quality and tempo, and specifically against *this kind of bowling*.
+- **Whether he is set.** Nobody arrives at the crease in form. A batter plays
+  himself in over about six balls in a Twenty20 and half an hour in a Test, and
+  a tail-ender never gets there.
+- **Where the innings is.** Powerplay, middle, death.
+- **The situation.** Wickets in hand and the rate still required. Nine down
+  needing fifty is a plea, not a licence.
+- **Conditions.** The surface, dew under lights, cloud cover, and the toss.
+
+### Pace and spin are different problems
+
+Every batter carries two batting ratings — one against pace, one against spin —
+computed from **4.5 million deliveries** classified by the bowler's own stated
+style. Gayle in 2018/19 comes out at 55 against pace and 99 against spin; Irfan
+Pathan in 2011 the exact reverse. **46% of players differ by eight rating points
+or more** between the two.
+
+It is the argument every cricket conversation about a batter arrives at within a
+minute — he cannot play spin — and until it was measured a turning pitch meant
+nothing to any *particular* player, only to a side's average.
+
+Half the measured difference is taken rather than all of it. The raw split
+swings enormously on a season where the spinners never got somebody out, and
+taken whole it drowned out how good the batter is at all: elite sides stopped
+beating good ones because every one of their batters had a hole somewhere.
+
+### Catches go down, bowlers tire, captains declare
+
+- **About one chance in thirty is dropped**, weighted by what the fielding side
+  actually caught per match, and a drop is a life. The rate matters more than it
+  looks: at one in ten the better side lost **twelve points of win rate**,
+  because it creates most of the chances and therefore forfeits most of the
+  drops. An attack that keeps beating the bat has to be worth having.
+- **A spell is consecutive overs and the fourth is not the first.** Pace drops,
+  length goes, about a run an over comes off it. That is the whole reason a
+  captain rotates an attack, and without it there was no cost to bowling your
+  best man straight through.
+- **A captain declares; he does not run out of overs.** A side bats until its
+  lead is enough and until enough of the match remains to bowl the opposition
+  out, and those pull against each other.
+- **A fourth innings is not always a chase.** Four hundred to get with a day left
+  is not a target, it is a warning, and a side in that position blocks. Without
+  that, a Test was drawn three times in a hundred; with it, twenty-five.
+
+### Rain
+
+About one limited-overs match in twenty is interrupted, likelier under an
+overcast sky than a clear one. When rain takes overs off a chase the target is
+revised *upward per over* rather than scaled straight down — a side with all ten
+wickets and half its overs has far more than half its scoring left in hand. So a
+side can win having made fewer runs than the other, which the card says out loud
+and which the scorecard checks had to be taught is not a fault.
+
+### Form moves through a season
+
+A season is not eleven players at their average, eleven times over. Somebody is
+in the form of his life by the sixth game and somebody has not middled it since
+the first, and both come out of what actually happened rather than a dice roll
+before each match. A hundred pulls a man out of a trough; three failures put him
+in one. Worth about a sixth either way, and weighted toward how often he gets
+out rather than how fast he scores, so it is felt without drowning out the strike
+rates the cards are built on.
+
+### Class tells further the longer the game is
+
+The same gap in ability is worth more over fifty overs than twenty, and more
+again over five days. It is why Twenty20 is the format upsets live in — there is
+not enough of it for the better side to be proved better, which is close to why
+it was invented. Without this a one-day match came out *flatter* than a Twenty20,
+which is backwards.
+
+### Where it lands
+
+| | Twenty20 | One-day | Test |
+| --- | ---: | ---: | ---: |
+| Par score | 160 | 262 | 384 |
+| Run rate, powerplay | 8.2 | 5.2 | — |
+| Run rate, middle | 8.5 | 5.1 | 3.1 |
+| Run rate, death | 12.2 | 6.8 | — |
+| Matches drawn | none | none | 25% |
+
+None of those is a target the code aims at. Each is what came out of playing the
+deliveries, and each is checked on every change.
+
+Against drafts a player can actually make — spin, take the best man on offer,
+repeat:
+
+| Tournament | Drafting well | Drafting loosely |
+| --- | --- | --- |
+| T20 League | 72% of group games, 15 titles in 40 | 65%, 12 |
+| ODI World Cup | 69%, 10 titles | 63%, 9 |
+| T20 World Cup | 57%, 5 titles | 45%, 3 |
+| Test Championship | 50%, 17 titles | 38%, 7 |
+
+Drafting well is worth about ten points of win rate and roughly doubles the
+title rate, which is what a draft game is for.
+
+A note on measuring this. An earlier version of this section reported 93% and
+called season mode too easy. That was the win rate of an XI with every top-six
+batter on 99 — free choice of the eleven best players in history, which the
+spin-and-pick draft never offers anybody. The benchmark was unreachable and the
+worry was imaginary.
+
+### The field you play
+
+A league is not a random sample of every club that ever existed. Each club draws
+six of its seasons and fields the best of them, and the fixture list is sampled
+with a bias toward the top of the table rather than uniformly — so the good
+sides are nearly always in it and the weak ones turn up now and then.
+
+Not scaled to the player. A field that improves because you drafted well is a
+field that never lets you feel you drafted well.
 
 ## Watching a match
 
-Every match generates a **full scorecard for both sides**: all eleven batters
-for each team — with real names from that squad-season — extras, totals, and both
-sets of bowling figures. A side that lost four wickets shows six batters, four
-out and exactly two not out; the rest are listed **DNB**. Runs are shared
-across the order on a skewed curve, because innings are lumpy: somebody goes
-big, somebody gets a jaffa. Nothing on the card can disagree with the scoreboard,
-because the card explains a result the simulator has already decided.
+Every match can be **watched, ball by ball**. The scoreboard climbs, the strike
+rotates, wickets land and hold the screen, and a chase counts down what is needed
+off how many. It runs at 1×, 2× or 4×, pauses, and skips — a Twenty20 takes about
+ninety seconds if you sit through all of it. Tests go over by over, because two
+thousand deliveries is not a thing anybody will sit through inside a tournament.
 
-**A Test is four innings.** Two visits to the crease a side, so a first-innings
-lead and a fourth-innings chase are both on the card. The simulator settles a
-side's runs and wickets for the match and the card splits them, weighted toward
-the first innings, so it still cannot disagree with the score. Where the side
-batting first leads by more than the other made in total, the match ends in
-three, as a win by an innings does.
+Knockouts and Champions Trophy ties play this way by default; any league match can
+be replayed on demand, from the live feed during the season or from the match log
+afterwards.
 
-**The card adds up.** How long an innings lasted, in deliveries, is decided once,
-and the overs figure, the balls each batter faced and the overs each bowler sent
-down are all derived from that one number. They used to be invented separately,
-which is how a card could report twenty overs, five bowlers of four each, and a
-batting side that faced ninety-four balls between them — with every strike rate
-inflated to match. Cricket fixes the deliveries and lets the runs vary; so does
-the card.
+A knockout used to resolve on the click. You chose to bat and the result was
+already on screen, so the final of a tournament took less time to play than a
+single group game took to animate.
 
-Every match also records **the biggest hit and the fastest ball** — 106 metres, 153
-kph. Neither is in the ball-by-ball data and neither could be: Cricsheet says a six was
-hit, not where it landed. But the match is simulated in the first place, so these
-belong to the same fiction as the runs and the wickets, and they are drawn from the
-players who did it — the hardest hitter clears the most rows, the quickest bowler bowls
-the quickest ball. What would not be allowed is a fabricated figure attached to a real
-career, and neither of these is that.
+**The replay is the match.** Not a reconstruction of it — the deliveries the
+engine bowled, replayed. There was once a second implementation here that
+recovered partnerships from the balls each batter faced and laid the runs back
+over them: a good guess at an innings that had never happened. Now there is
+nothing to guess at, and that code is gone.
+
+### The card is a reading of the match, not an explanation of it
+
+Every match generates a full scorecard for both sides — all eleven batters with
+real names from that squad-season, extras, totals, and both sets of bowling
+figures. A side that lost four wickets shows six batters, four out and exactly two
+not out; the rest are **DNB**.
+
+Every figure on it is something that happened. A batter's 43 off 29 is
+twenty-nine deliveries he faced and forty-three runs he hit. A bowler's 4-0-22-3
+is his four overs and his three wickets, and the man who bowled the eighteenth is
+the man who went for sixteen in it.
+
+That sounds obvious and it was not true before. The old card shared a decided
+total across the order on a skewed curve and shared the wickets out on another,
+so a four-for belonged to nobody in particular, and the two cards agreed with the
+scoreboard only because both were built backwards from it. 627 lines of that are
+gone. There is one account of the match now, and everything else is read off it.
+
+**A Test is four innings** — two visits to the crease a side, so a first-innings
+lead and a fourth-innings chase are both on the card.
+
+Every match also records **the biggest hit and the fastest ball** — 106 metres,
+153 kph. Neither is in the ball-by-ball data and neither could be: Cricsheet says
+a six was hit, not where it landed. But the match is simulated in the first
+place, so these belong to the same fiction as the runs, and they are drawn from
+the players who did it. What would not be allowed is a fabricated figure attached
+to a real career, and neither of these is that.
 
 `npm run cards:check` reads a thousand cards across all four formats looking for
 cricket a scorer would refuse to write down, and it has caught real things: a
-batter three not out off one ball and given lbw — the single delivery he faced
-was the one that got him — eleven dismissals against ten wickets, because the man
-stranded at the other end was given an entry too, and 4.4 overs in a twenty-over
-game.
+batter three not out off one ball and given lbw — the single delivery he faced was
+the one that got him — eleven dismissals against ten wickets, and 4.4 overs in a
+twenty-over game.
 
-### The match is played, not announced
-
-A knockout used to resolve on the click. You chose to bat, and the result was
-already on the screen — so the final of a tournament took less time to play than
-a single group game took to animate, which is what people meant when they said
-the simulation was over before it started.
-
-Every match can now be **watched, ball by ball**. The scoreboard climbs, the
-strike rotates, wickets land and hold the screen, and a chase counts down what
-is needed off how many. It runs at 1×, 2× or 4×, pauses, and skips — a T20
-takes about ninety seconds if you sit through all of it. Knockouts and Champions
-Trophy ties play out this way by default; any league match can be replayed on
-demand, from the live feed during the season or from the match log afterwards.
-
-**None of it is invented.** The replay is reconstructed from the finished card
-and from nothing else. A card only ever dismisses batters in the order it lists
-them, so the balls each of them faced are enough to recover every partnership:
-the first two are together until the first falls, then the second and the third,
-and so on down. Each delivery is drawn against the rate still required — what is
-left, over what is left to face — which is why a batter plays himself in and then
-cashes in, and why the last over of a chase is the last over of a chase.
-
-Because it is derived rather than stored, a shared result replays the same
-innings for whoever opens it, days later, from the card alone. Not one ball is
-saved anywhere.
-
-**The bowling card is read off the replay.** Runs used to be shared among the
-attack in inverse proportion to how good they were, and wickets drawn from a
-skewed curve, so nobody's four-for belonged to any particular over. Now the man
-who bowled the eighteenth is the man who went for sixteen in it. The overs each
-of them sends down are still the card's, because that is where the quotas and
-the conditions live.
-
-`npm run play:check` replays every innings of sixteen hundred matches — about 1.4
-million deliveries — and checks that the innings coming out is the one that went
-in: every batter's exact score and balls faced, the wickets in order and off the
-right end, the extras to the run, the bowling figures, and no batter scoring off
-the ball that dismissed him. It also holds the shape to account, because a
-correct innings can still be a wrong one: it caught a powerplay going at eleven
-an over and a death at five, four wickets in a single over, twelve leg byes off
-one delivery, and a five off the bat every three overs.
-
-**Nothing happens without being explained.** The league stage ends on the final
-table, with your position, the qualification cut and what comes next spelled
-out, and you press on when you're ready. Every knockout is introduced with the
-opponent, their rating, their danger men, the surface and what is at stake —
-then the toss, then the result, then whether you are through or out.
+`npm run play:check` replays every innings of sixteen hundred matches, about 1.4
+million deliveries, and checks the innings coming out is the one that went in.
 
 ## The season review
 
@@ -262,11 +307,11 @@ scorecards the tournament produced:
 ## Data
 
 Every number in the game is computed from **ball-by-ball records of matches that
-were actually played** — 12,337 of them, from [Cricsheet](https://cricsheet.org),
+were actually played** — 15,270 of them, from [Cricsheet](https://cricsheet.org),
 which publishes them freely for exactly this use.
 
 ```
-168 teams · 3,989 players · 2,487 squad-seasons · 42,178 player-seasons · 2002–2026
+168 teams · 3,989 players · 2,486 squad-seasons · 42,165 player-seasons · 2002–2026
 ```
 
 | Competition | Teams | Seasons |
@@ -324,6 +369,29 @@ Tendulkar on. Leverock 94 to 84, Dhaniram 87 to 79, Davison 95 to 88.
 **Short seasons still regress to the mean**, measured in matches rather than
 deliveries, because impact is a per-match rate: it is a short season that inflates
 it, not a short spell.
+
+### What he does against pace, and against spin
+
+Two batting ratings per player-season, not one, computed from **4.5 million
+deliveries** classified by the bowler's own stated style — read off his Wikipedia
+entry and joined by Cricsheet identifier, because a medium-pacer and an
+off-spinner can have identical figures and nothing in the deliveries
+distinguishes them. 2,077 bowlers are typed that way.
+
+Gayle 2018/19: **55 against pace, 99 against spin**. Irfan Pathan 2011 the exact
+reverse. 46% of players differ by eight points or more.
+
+Anchored to the overall batting rating and moved from it by how much better or
+worse the split actually was, weighted by the balls it rests on — 120 deliveries
+is where it starts to be believed. Below that it stays close to what he is
+generally worth, because a good week against spin is not a fact about anybody.
+
+### How safe a pair of hands
+
+Catches taken per match, which is the only fielding record the ball-by-ball data
+keeps. A blunt instrument — a slip fielder gets more chances than a man on the
+boundary — but a real one, and without it every dropped catch in the game would
+have been drawn from thin air.
 
 ### What a player was, as against what they did in one summer
 
@@ -422,29 +490,56 @@ the other two are inferred and validated.
 
 ### Where it lives
 
-The archive is in Postgres (Supabase) and the app pulls it once at start-up.
+The archive ships as a **single static file** and the database is the fallback.
 
 ```
 supabase/schema.sql       tables, a read-only public policy, a version stamp
 supabase/archive.sql      the whole archive, generated — never edited by hand
-src/data/repository.ts    one paged fetch, cached in IndexedDB against the stamp
+public/archive.json       the same archive, one file, ~980 KB over the wire
+src/data/repository.ts    the file first, the cache second, Postgres last
 src/data/squads.ts        the query layer — seasons, prime, pools, feasibility
 ```
 
-**Why a database**, when the data never changes mid-game: so it can change
-*between* games. Fixing a rating is an edit in the Supabase table editor, not a
-deploy. A trigger bumps the version stamp on every write, the client compares it
-on load, and a returning player who is already current downloads **one row**.
+It used to be read out of Postgres on every visit: **forty-three paged requests**
+against a view joining four tables, each one ordering all 42,165 rows and
+counting them again. Sixteen and a half seconds when it worked, and a cancelled
+statement when the instance was busy — which is the "rain delay" players were
+getting. Measured on the live database, a bare `COUNT(*)` on that view timed out
+at 7.5 seconds.
 
-**Why the game still holds it all in memory**: a spin has to feel instant, and a
-spin that waits on a round trip does not. Reads go through plain `fetch` against
+None of that work needed doing. The archive changes when it is rebuilt and not
+otherwise, so the build writes it out as one file and the CDN serves it
+compressed. **Two database calls on a cold visit**, and the archive itself in
+about 160 ms.
+
+The build stamps one id into both the file and the SQL, so the id is also the
+cache key: a returning player whose copy matches downloads nothing and parses
+nothing.
+
+Postgres stays the source of truth and the fallback. The file is asked for twice
+before the database hears about it — nearly every failure is transient, and a
+dropped connection on a phone used to send that visitor into forty-three requests
+fetching *more* bytes from a slower place than the file that had just failed.
+Anything already on the device is served next. Only then does it read the tables,
+and it reads `roster_pages`, a materialized copy held in read order with a unique
+index, so a page is an index scan rather than a sort of the whole join.
+
+And it no longer arrives as a stampede. Those pages went out as forty-two
+simultaneous requests — forty-two pooled connections held by one visitor, so two
+or three unlucky people at once could exhaust the pool and error out everybody
+else. Four lanes now.
+
+The trade is that a rating edited straight in the Supabase dashboard waits for a
+deploy to reach players rather than arriving on their next load. That property was
+costing sixteen seconds on every visit and taking the site down.
+
+**Why the game holds it all in memory**: a spin has to feel instant, and a spin
+that waits on a round trip does not. Reads go through plain `fetch` against
 PostgREST — the full Supabase client would have added 400 KB of auth, storage and
-realtime code to make three GETs. The client asks for the eighteen columns it
-renders, not the whole table, so the record behind the ratings can live in the
-database without riding down the wire.
+realtime code to make three GETs.
 
 Ratings are stored; averages and strike rates are stored as the counts they came
-from. A rating is a percentile across a whole population and cannot be recomputed
+from. A rating is a distance across a whole population and cannot be recomputed
 from one row, so it is written down. Runs and balls are facts about the player, so
 they are kept as a scorecard would print them and divided when needed. Era, prime
 ratings and a player's batting and bowling contribution stay derived in the
@@ -460,21 +555,30 @@ collapsed that way before it was caught.
 ### Building and checking it
 
 ```bash
-npm run ingest       # download Cricsheet, aggregate ball-by-ball, count partnerships
+npm run bowling      # each bowler's stated style, from their own article
+npm run ingest       # parse ball-by-ball, split every batter's record by
+                     #   bowling type, count partnerships and catches
 npm run rerate       # grade the competitions and re-score every player-season
 npm run nations      # nationality and full names, by identifier join to Wikidata
-npm run bowling      # each bowler's stated style, from their own article
 npm run roles        # each player's stated role, from their own article
-npm run archive      # write supabase/archive.sql
+npm run facts        # the figures the written pages are built from
+npm run archive      # write supabase/archive.sql and public/archive.json
 npm run db:push      # apply to Supabase
+npm run deploy       # build and ship
 ```
 
-The order matters. `ingest` re-parses two gigabytes of ball-by-ball and writes its
-own ratings with the old percentile model; `rerate` replaces them. Skipping the
-middle step silently undoes the whole rating pass, which is the sort of thing that
-is obvious once and never again.
+The order matters, twice over. `bowling` comes first because `ingest` needs to
+know who bowls pace and who bowls spin before it can split anybody's record by
+it. And `ingest` writes its own ratings with the old percentile model, which
+`rerate` then replaces — skipping that step silently undoes the whole rating
+pass, which is the sort of thing that is obvious once and never again.
 
-Eight checks, each catching a different kind of wrong:
+`archive` stamps one build id into both `archive.sql` and `public/archive.json`,
+so the id doubles as the cache key. Which means the sequence after any data
+change is **archive → db:push → deploy**, in that order, or a returning player
+re-downloads an archive that has not changed.
+
+Ten checks, each catching a different kind of wrong:
 
 ```bash
 npm run audit        # is the cricket right? rates, distributions, outliers
@@ -487,6 +591,7 @@ npm run draft:check  # 2,600 drafts across every crossing of every filter
 npm run db:check     # the SQL against a real Postgres — and as a non-owner
 npm run live:check   # a whole live draft played with nobody watching
 npm run live:prod    # two real clients racing each other on production
+npm run engine:check # thousands of innings: par scores, run-rate shape, who wins
 ```
 
 `audit` reports rates, which is the right shape for judging a dataset and the
@@ -499,6 +604,16 @@ and reads the tables as a non-owner — because a fresh database run by its owne
 has no history and bypasses row-level security, which is how three separate
 bugs reached production. `live:check` exists because a backgrounded browser tab
 suspends network IO, so a draft driven through one proves nothing.
+
+`engine:check` is the one that keeps the cricket honest. It plays thousands of
+innings between real sides and asserts the things a follower of the game would
+notice within one over: what a par score is, that the death overs are faster than
+the middle, that the top order outscores the tail, that a good attack is worth
+runs, that a batting surface beats a turner, that catches go down but not
+constantly, that a Test can be drawn, and that the better side wins more often
+the wider the gap. None of those numbers is aimed at; all of them are measured.
+It caught a powerplay running at eleven an over against a death at five, and a
+one-day match coming out flatter than a Twenty20.
 
 `data:check` asks what a single row cannot answer: whether a player is the same
 player wherever they appear, whether their prime is really their prime, whether a
@@ -571,6 +686,46 @@ VITE_AD_SLOT_LEADERBOARD=…
 Consent, where the law requires it, is handled by Google's own privacy messaging
 in the AdSense dashboard rather than by anything in this repository.
 
+Verification is a `google-adsense-account` meta tag rather than the snippet
+AdSense offers first, and that is the point: the snippet wants the ad library in
+`<head>` on every page, which puts a third-party script on the critical path of
+screens that carry no advertising at all. The meta tag proves the same ownership
+and loads nothing. `ads.txt` is emitted at build time from the same variable, so
+the publisher id is written down once.
+
+## The written pages
+
+Seven of them, about 6,700 words, rendered to standalone HTML at build time and
+served as real files.
+
+```
+/how-ratings-work           the method, and the three times it was wrong
+/how-the-simulation-works   why the ball is bowled before the result is known
+/best-cricket-seasons       the forty highest-rated player-seasons on record
+/t20-league-strength        which competition is hardest, measured
+/how-to-draft               what ten thousand simulated seasons say
+/the-archive                15,270 matches, and what is deliberately left out
+/about                      what the game is, and what it is not
+```
+
+**Not React routes.** A single-page app leaves an empty div behind for anybody
+not running its scripts, and the three readers who matter most for a page like
+this — somebody with scripts off, a search crawler, and a human reviewing the
+site — are all in exactly that position. On a static host a real file is served
+ahead of the application's catch-all, so these are real files: 1,244 words of
+readable article at `/how-ratings-work` with no application to boot first.
+
+The three data pages are generated from the same archive the game deals cards
+from, by `npm run facts`, so a table on a page and a card in a draft cannot
+disagree. The league-strength table is the two-way competition model the ratings
+already use, printed rather than hidden — SA20 and the Caribbean Premier League
+hardest to bat in, the Bangladesh Premier League and the T20 Blast easiest.
+
+This exists because AdSense rejected the site for **low value content**, and the
+verdict was right: every route was the game or a legal page, so somebody arriving
+had a thing to play and nothing whatsoever to read. The `<noscript>` description
+added for crawlers is never seen by a reviewer with scripts running.
+
 ## Playing against people
 
 Two modes, different in kind rather than in degree.
@@ -640,12 +795,40 @@ that decides who reaches a knockout was decided by neither runs nor overs.
 
 **Ladders are per tournament.** One board cannot rank a fourteen-game league
 against a twelve-Test championship: sorted on a raw win column, the longer
-season wins before anybody drafts a player. Each tournament keeps its own table, and each
-can be read all-time or for today alone. There were Global / India / Friends
-tabs above them for a while; they filtered nothing, showing the same field
-whichever was pressed, and a control that does nothing is worse than an absent
-one because the player concludes the data is wrong rather than the feature
-missing.
+season wins before anybody drafts a player. Each tournament keeps its own table,
+read all-time, **this week**, or for today alone. There were Global / India /
+Friends tabs above them for a while; they filtered nothing, showing the same
+field whichever was pressed, and a control that does nothing is worse than an
+absent one because the player concludes the data is wrong rather than the
+feature missing.
+
+The week exists because the other two do not serve a newcomer. All-time is
+decided long before most people find it and today's is gone before they come
+back; the week is the one somebody arriving on a Wednesday can still win.
+
+**You are on it whether or not you are on it.** The board shows fifty rows.
+Somebody in three hundred and forty-seventh used to open it and find a list of
+strangers with nothing about themselves anywhere on it, which is a good reason
+never to open it again. Your own line is pinned below with your rank out of
+everybody, and it opens like any other.
+
+**Tap any row for the eleven that scored it.** Every result has carried its XI
+since the first one was saved and nothing had ever read it, so a row was a name
+and a number and the only question a leaderboard actually raises — *how did they
+get that* — had no answer anywhere in the game. Now you get the side, the
+settings it was drafted under, and what it did.
+
+**The daily keeps a streak.** Counted back from the last day played, and zero if
+that was before yesterday: a run you broke in March is not a run, and showing it
+as one teaches people to ignore numbers.
+
+All of that costs **one request fewer than before**. The board used to fetch four
+hundred seasons so the browser could throw away seven in eight of them keeping
+one per player, then fetch everybody's experience separately from a view the
+seasons could not be joined to. Postgres has had `DISTINCT ON` for this the whole
+time. One call now returns fifty rows, the total, your rank and your streak: two
+sequential round trips become one, 11.9 KB becomes 8.3, and the naive way to add
+rank would have made it three.
 
 **Within a board you are ranked on points**, built from the three things a
 cricket season actually produces:
@@ -802,14 +985,19 @@ itself, seam and all, and doubles as the favicon.
 src/
   data/       repository (the fetch), squads (the query layer), account,
               records, leagues, live, challenges, nations, team identity
-  game/       types, draft, opponents, sim, card, review, trophy, live
-  components/ PlayerCard, TeamSheet, MatchView, Review, SpinReel, YearRange,
+  game/       types, draft, opponents, engine (the deliveries), scorecard
+              (reading them), playback (dressing them), sim (the season),
+              review, trophy, live, conditions, chemistry, records, shareCard
+  content/    pages.ts — the written pages; facts.json — their figures
+  components/ PlayerCard, TeamSheet, MatchView, LiveMatch (the ball-by-ball
+              scoreboard), SeasonXIDrawer, Review, SpinReel, YearRange,
               ArchiveGate, ClaimAccount, HandleEditor, AbandonDraft, Field,
-              icons and crests, ui kit
+              Ad, icons and crests, ui kit
   screens/    Home, Play (setup→draft→XI→sim→result→trophy), Daily, Leaderboard,
               Profile, Multiplayer, LeaguePage, LiveDraft, Legal
 scripts/      ingest, rerate, nations, bowling, roles, challenges, archive,
-              audit, row-probe, data-probe, card-probe, combo-probe, draft-probe,
+              facts, render-pages, audit, row-probe, data-probe, card-probe,
+              engine-probe, playback-probe, combo-probe, draft-probe,
               live-probe, two-client-probe, db-check, db-push
               lib/ratings.mjs — the rating model, shared by ingest and rerate
 supabase/     schema.sql, archive.sql, challenges.sql   (generated)
@@ -822,13 +1010,24 @@ content/      thirty days of posts, and the tools that render them
 One draft engine, one simulation module, one design system. `Play.tsx` owns the
 game flow as a phase machine; every other screen is a leaf.
 
-The game modules split by job: `opponents.ts` turns squads into rated sides,
-`sim.ts` decides results, `card.ts` explains them, `review.ts` reads the whole
-tournament back as prose, `trophy.ts` runs the invitational, `live.ts` holds the
-parts of a live draft every client works out for itself. `types.ts` holds every
-shared type — including `Opponent` — so nothing imports in a circle. `conditions.ts`,
-`chemistry.ts`, `records.ts` and `shareCard.ts` are each one job: the weather, the
-partnerships, the season's best performances, and the picture a player posts.
+The game modules split by job, and the split follows the direction the cricket
+flows in. `opponents.ts` turns squads into rated sides. `engine.ts` bowls every
+delivery. `scorecard.ts` reads a card off them. `playback.ts` dresses them for
+the scoreboard — names where the engine counts in indices. `sim.ts` runs the
+season around all of it, `review.ts` reads the tournament back as prose,
+`trophy.ts` runs the invitational, and `live.ts` holds the parts of a live draft
+every client works out for itself.
+
+`card.ts` used to sit between `sim` and the screen, inventing a scorecard to
+explain a decided result. It is gone — 627 lines — along with the reconstruction
+in `playback.ts` that recovered an innings from that card. Both existed only
+because the match had never been played. 1,484 lines out, 1,148 in, and one
+account of a match instead of two that had to be kept agreeing.
+
+`types.ts` holds every shared type — including `Opponent` — so nothing imports in
+a circle. `conditions.ts`, `chemistry.ts`, `records.ts` and `shareCard.ts` are
+each one job: the weather, the partnerships, the season's best performances, and
+the picture a player posts.
 
 The SQL splits by what it owns. `schema.sql` and `archive.sql` are the cricket
 and are rebuilt wholesale; `players.sql` holds accounts and results and is never
@@ -860,19 +1059,25 @@ the previous release's shape.
   in `data/challenges.ts`, and the tournament is seeded so the same XI always
   plays out the same way. Every `rand()` call in `sim.ts` is part of that
   sequence, so adding or reordering calls changes historical daily results.
-- Balance is measurable rather than guessed. `EDGE_WEIGHT` in `sim.ts` sets how
-  far a rating advantage carries in each format, the best-of-four season draw in
-  `opponents.ts` sets how strong a league field is, and `bestOf` in `trophy.ts`
-  sets how wide the invitational's shortlist is. All three move championship
-  rates by tens of percent. Re-measure after touching any of them — and
-  `EDGE_WEIGHT` now feeds the league, the knockouts, the table and the trophy,
-  so a change there moves everything at once.
-- **The simulation is merit, not noise, and it is checkable.** Across three
-  thousand matches the observed win rate tracks the predicted one within a few
-  points at every rating edge (61% observed against 61% predicted at an edge of
-  eight, 73% against 70% at fourteen). Holding the field constant and varying
-  only the XI, the stronger side finishes higher in **71%** of pairs, with a
-  clean gradient from 12% of tables won at strength 80–85 to 56% at 95+.
+- Balance is measurable rather than guessed, and the levers moved. `SHAPE` in
+  `engine.ts` sets what a format is like — par rate, balls per wicket, how far
+  class tells — and the best-of-six season draw in `opponents.ts` sets how strong
+  a league field is. Both move championship rates by tens of percent.
+  `engine:check` and a run of whole seasons is the only honest way to judge a
+  change to either.
+- **Measure against a draft somebody can actually make.** An earlier reading of
+  this called season mode too easy at 93%, which was the win rate of an XI with
+  every top-six batter on 99 — free choice of the eleven best players in history.
+  The spin-and-pick draft never offers that to anybody, so the benchmark was
+  unreachable and the conclusion drawn from it was wrong. Simulate the draft, then
+  play the season.
+- **A constraint inside `create table if not exists` is a constraint that never
+  changes.** Two new event names were added to the `events` check constraint,
+  the push reported success, and nothing happened — the table already existed, so
+  the whole statement was skipped and the client posting those names got 23514
+  back. The list now lives in an `alter table` that runs unconditionally. Worth
+  remembering that `db:check` cannot see this class of bug at all: it applies
+  every file to an empty database, where that statement always runs.
 - **Wikidata's query service answers a request it cannot finish inside sixty
   seconds with partial results, a 200, and no warning.** Two earlier versions of
   `fetch-nations.mjs` were quietly wrong because of it — Pakistan came back with
