@@ -206,7 +206,33 @@ export default function Home() {
           images are used. Ratings are computed from publicly published ball-by-ball records of
           matches that were actually played, and represent this game&rsquo;s reading of them alone.
         </p>
-        <p className="mt-4 text-[10px] text-moss/70">
+        {/*
+          * Plain anchors, not router links.
+          *
+          * These four are real HTML files rather than screens in the app, so
+          * that a reader with scripts off, a search crawler and anybody
+          * reviewing the site all get the whole article instead of an empty
+          * div. A router link would keep them inside the application and
+          * defeat the point.
+          */}
+        <p className="mx-auto mt-5 max-w-[52ch] text-[10.5px] leading-relaxed text-moss/80">
+          <a href="/how-ratings-work" className="underline hover:text-cream-dim">
+            How the ratings are made
+          </a>
+          <span className="px-2">·</span>
+          <a href="/how-the-simulation-works" className="underline hover:text-cream-dim">
+            How the match engine works
+          </a>
+          <span className="px-2">·</span>
+          <a href="/the-archive" className="underline hover:text-cream-dim">
+            The archive
+          </a>
+          <span className="px-2">·</span>
+          <a href="/about" className="underline hover:text-cream-dim">
+            About
+          </a>
+        </p>
+        <p className="mt-3 text-[10px] text-moss/70">
           <Link to="/privacy" className="underline hover:text-cream-dim">
             Privacy
           </Link>
