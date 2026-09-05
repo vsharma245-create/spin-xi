@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/render-pages.mjs",
+    "build": "node scripts/build-facts.mjs && tsc -b && vite build && node scripts/render-pages.mjs",
     "deploy": "npm run build && wrangler pages deploy dist --project-name=spin-xi --branch=production",
     "lint": "oxlint",
     "preview": "vite preview",
@@ -28,7 +28,8 @@
     "audit": "node scripts/audit.mjs",
     "rows:check": "esbuild scripts/row-probe.ts --bundle --platform=node --format=esm --outfile=.row-probe.mjs --external:@electric-sql/pglite --log-level=error && node .row-probe.mjs; rm -f .row-probe.mjs",
     "play:check": "esbuild scripts/playback-probe.ts --bundle --platform=node --format=esm --outfile=.play-probe.mjs --external:@electric-sql/pglite --log-level=error && node .play-probe.mjs; rm -f .play-probe.mjs",
-    "engine:check": "esbuild scripts/engine-probe.ts --bundle --platform=node --format=esm --outfile=.engine.mjs --external:@electric-sql/pglite --log-level=error && node .engine.mjs; rm -f .engine.mjs"
+    "engine:check": "esbuild scripts/engine-probe.ts --bundle --platform=node --format=esm --outfile=.engine.mjs --external:@electric-sql/pglite --log-level=error && node .engine.mjs; rm -f .engine.mjs",
+    "facts": "node scripts/build-facts.mjs"
   },
   "dependencies": {
     "framer-motion": "^11.18.2",

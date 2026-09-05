@@ -215,21 +215,36 @@ export default function Home() {
           * div. A router link would keep them inside the application and
           * defeat the point.
           */}
-        <p className="mx-auto mt-5 max-w-[52ch] text-[10.5px] leading-relaxed text-moss/80">
-          <a href="/how-ratings-work" className="underline hover:text-cream-dim">
-            How the ratings are made
-          </a>
-          <span className="px-2">·</span>
-          <a href="/how-the-simulation-works" className="underline hover:text-cream-dim">
-            How the match engine works
-          </a>
-          <span className="px-2">·</span>
-          <a href="/the-archive" className="underline hover:text-cream-dim">
-            The archive
-          </a>
-          <span className="px-2">·</span>
+        {/*
+          * Plain anchors, not router links.
+          *
+          * These are real HTML files rather than screens in the app, so that a
+          * reader with scripts off, a search crawler and anybody reviewing the
+          * site all get the whole article instead of an empty div. A router
+          * link would keep them inside the application and defeat the point.
+          */}
+        <div className="mx-auto mt-6 grid max-w-[46rem] gap-1.5 text-left sm:grid-cols-2">
+          {[
+            ['/how-ratings-work', 'How the ratings are made', 'Distance from the middle, and the three times it was wrong.'],
+            ['/how-the-simulation-works', 'How the match engine works', 'Why the ball is bowled before the result is known.'],
+            ['/best-cricket-seasons', 'The best seasons on record', 'The highest-rated player-seasons in the archive.'],
+            ['/t20-league-strength', 'Which T20 league is hardest?', 'Measured from what the same players did in both.'],
+            ['/how-to-draft', 'How to draft a side that wins', 'What ten thousand simulated seasons say.'],
+            ['/the-archive', 'The archive', '15,270 matches, and what is left out.'],
+          ].map(([href, title, note]) => (
+            <a
+              key={href}
+              href={href}
+              className="rounded-xl border border-white/[0.06] bg-white/[0.015] px-3.5 py-2.5 transition-colors hover:border-white/15 hover:bg-white/[0.04]"
+            >
+              <div className="text-[11.5px] font-bold text-cream-dim">{title}</div>
+              <div className="mt-0.5 text-[10px] leading-snug text-moss/80">{note}</div>
+            </a>
+          ))}
+        </div>
+        <p className="mt-4 text-[10px] text-moss/70">
           <a href="/about" className="underline hover:text-cream-dim">
-            About
+            About SPIN XI
           </a>
         </p>
         <p className="mt-3 text-[10px] text-moss/70">

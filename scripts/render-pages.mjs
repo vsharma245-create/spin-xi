@@ -15,6 +15,45 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SITE = 'https://www.spin-xi.com'
 
+/** Figures read out of the archive by `npm run facts`. */
+const FACTS = JSON.parse(await readFile(join(ROOT, 'src/content/facts.json'), 'utf8'))
+
+const at = (path) => path.split('.').reduce((o, k) => o?.[k], FACTS)
+
+/** A season, as a table row. Only the columns that mean anything for it. */
+const seasonRows = (list) => ({
+  head: ['', 'Player', 'Season', 'Competition', 'Role', 'M', 'Runs', 'SR', 'Wkts', 'Econ'],
+  rows: list.map((r, i) => [
+    String(i + 1),
+    esc(r.player),
+    esc(r.season),
+    esc(r.comp),
+    r.role,
+    String(r.matches),
+    r.runs > 0 ? String(r.runs) : '—',
+    r.sr ? String(r.sr) : '—',
+    r.wickets > 0 ? String(r.wickets) : '—',
+    r.econ ? r.econ.toFixed(2) : '—',
+  ]),
+})
+
+const strengthRows = (list) => ({
+  head: ['Competition', 'Hard to bat in', 'Hard to bowl in', 'Player-seasons'],
+  rows: list.map((r) => [
+    esc(r.name),
+    r.batting.toFixed(2),
+    r.bowling.toFixed(2),
+    r.seasons.toLocaleString(),
+  ]),
+})
+
+function factsTable(key) {
+  const data = at(key)
+  if (!data) return null
+  if (key === 'strength') return strengthRows(data)
+  return seasonRows(data)
+}
+
 const esc = (s) => String(s).replace(/&(?!#?\w+;)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 /** Content is authored with a little inline HTML, so tags are kept. */
 const rich = (s) => String(s)
@@ -24,6 +63,10 @@ function block(b) {
   if ('p' in b) return `      <p>${rich(b.p)}</p>`
   if ('quote' in b) return `      <blockquote>${rich(b.quote)}</blockquote>`
   if ('list' in b) return `      <ul>\n${b.list.map((i) => `        <li>${rich(i)}</li>`).join('\n')}\n      </ul>`
+  if ('facts' in b) {
+    const t = factsTable(b.facts)
+    return t ? block({ table: t }) : ''
+  }
   if ('table' in b) {
     const head = b.table.head.some(Boolean)
       ? `        <thead><tr>${b.table.head.map((h) => `<th>${rich(h)}</th>`).join('')}</tr></thead>\n`
@@ -102,6 +145,24 @@ function render(page, all) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;700;800;900&display=swap" rel="stylesheet" />
     <style>${STYLE}</style>
+    <!--
+      Structured data, so a crawler is told what this page is rather than left
+      to work it out from the markup. It is the same information the head
+      already carries, stated in the form search engines actually read.
+    -->
+    <script type="application/ld+json">${JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: page.title,
+      description: page.blurb,
+      url,
+      inLanguage: 'en',
+      isAccessibleForFree: true,
+      author: { '@type': 'Organization', name: 'SPIN XI', url: SITE },
+      publisher: { '@type': 'Organization', name: 'SPIN XI', url: SITE },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+      about: { '@type': 'Thing', name: 'Cricket statistics and simulation' },
+    })}</script>
   </head>
   <body>
     <nav class="bar"><div class="in">

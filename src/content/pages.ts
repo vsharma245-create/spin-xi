@@ -25,6 +25,8 @@ export type Section =
   | { list: string[] }
   | { quote: string }
   | { table: { head: string[]; rows: string[][] } }
+  /** A table built at render time from the archive itself. */
+  | { facts: string; head?: string[] }
 
 export const PAGES: Page[] = [
   {
@@ -252,6 +254,153 @@ export const PAGES: Page[] = [
       { h: 'Licensing and use' },
       {
         p: 'Cricsheet data is published for public use and this game is one of the uses it was published for. SPIN XI is an independent fan-made project. It is not affiliated with, endorsed by or associated with any cricket board, league, franchise, player association or ratings provider.',
+      },
+    ],
+  },
+
+{
+    slug: 'best-cricket-seasons',
+    title: 'The best seasons in the archive',
+    blurb:
+      'The highest-rated player-seasons across 15,270 matches of Test, one-day and Twenty20 cricket — and why all-rounders dominate the top of the list.',
+    standfirst:
+      'Forty player-seasons, rated on what happened in them rather than on reputation. Thirteen players in the whole archive reach 95.',
+    body: [
+      {
+        p: 'A season here is one player, one competition, one year — not a career. The rating is how far that season stood from the middle of everyone who played the same format, computed from ball-by-ball records. Nothing is weighted by fame and nothing is copied from another list.',
+      },
+      {
+        p: 'A qualification applies: at least six matches, and either 150 deliveries faced or 300 bowled. Without it the table fills with two-match cameos, which is a different and much less interesting list.',
+      },
+      { h: 'The forty best seasons on record' },
+      { facts: 'best.overall' },
+      { h: 'Why all-rounders own the top of it' },
+      {
+        p: 'The list is dominated by players who did both, and that is a property of the measurement rather than a bug in it. A rating is impact per match. A batter contributes with the bat, a bowler with the ball, and an all-rounder having a good year contributes twice in the same ninety-odd matches — so his impact per match is genuinely higher.',
+      },
+      {
+        p: 'It is worth knowing when reading the number: 95 for an all-rounder and 95 for an opening batter are the same distance from the middle, but they were reached by different routes. In the game this matters, because an eleven of all-rounders wins fewer matches than its average rating suggests — it has nobody who does either thing outstandingly.',
+      },
+      { h: 'Twenty20' },
+      { facts: 'best.twenty20' },
+      { h: 'One-day cricket' },
+      { facts: 'best.oneday' },
+      { h: 'Test cricket' },
+      { facts: 'best.test' },
+      { h: 'The best batting seasons' },
+      {
+        p: 'Filtered to seasons of 400 runs or more, and to players whose primary contribution is batting.',
+      },
+      { facts: 'best.batting' },
+      { h: 'The best bowling seasons' },
+      { p: 'Filtered to seasons of fifteen wickets or more.' },
+      { facts: 'best.bowling' },
+      {
+        p: 'Every figure in these tables is computed from the same archive the game deals cards from. If a rating here looks wrong to you, it is wrong in the game too, and <a href="/how-ratings-work">the method is written up in full</a>.',
+      },
+    ],
+  },
+
+  {
+    slug: 't20-league-strength',
+    title: 'Which Twenty20 league is hardest to play in?',
+    blurb:
+      'Not an opinion. A measurement of what the same players did in different leagues, from ball-by-ball records of every match.',
+    standfirst:
+      'Hundreds of cricketers play in several Twenty20 leagues in the same year. What they do in each one is the only honest way to compare them.',
+    body: [
+      {
+        p: 'Every discussion of league quality runs into the same wall: a hundred in one competition is not a hundred in another, and there is no obvious exchange rate. Averages cannot settle it, because the leagues are not playing each other.',
+      },
+      {
+        p: 'But hundreds of players do play in several of them, often in the same season. That overlap is the exchange rate. If a batter strikes at 150 in one league and 125 in another, in the same year, against the same body of bowlers, something about the two leagues differs — and with enough such players the difference can be separated from the players themselves.',
+      },
+      { h: 'How this is measured' },
+      {
+        p: 'A two-way model over players and competitions, solved by alternating between the two. Each player is credited with an ability, each competition with an ease, and the two are fitted until they agree with what actually happened. Competitions with few shared players are pulled toward neutral, because a league nobody leaves cannot be compared with anything.',
+      },
+      {
+        p: 'Twenty20 internationals are graded in the same bracket as the leagues rather than assumed to be hardest, so international cricket has to earn its place in the table like everything else.',
+      },
+      { h: 'The table' },
+      {
+        p: 'Higher means harder. The batting column is how difficult it is to score there; the bowling column how difficult it is to take wickets cheaply.',
+      },
+      { facts: 'strength' },
+      { h: 'What it says' },
+      {
+        p: 'The SA20 and the Caribbean Premier League come out as the hardest places to bat, and the Bangladesh Premier League, the Lanka Premier League and the T20 Blast the easiest. Nobody voted on this. It is what the same cricketers did in both.',
+      },
+      {
+        p: 'The practical consequence, and the reason it exists: without this correction a strong season in a weak competition rated the same as a strong season in a hard one. In the first version of these ratings that produced John Davison — five Canadian seasons — as the best player in the game at 95, above Tendulkar, Dravid, Ponting, Kallis and Sehwag at 91. Grading the competitions is what fixed it.',
+      },
+      {
+        p: 'A caveat worth stating: this measures how hard it was to score and to take wickets, which is not quite the same as which league has the best cricketers. A tournament played on slow, used pitches will look hard, and a short competition with a small overlap of shared players carries more uncertainty than the table’s tidy numbers admit.',
+      },
+    ],
+  },
+
+  {
+    slug: 'how-to-draft',
+    title: 'How to draft a side that actually wins',
+    blurb:
+      'What ten thousand simulated seasons say about building an eleven in SPIN XI: where the rating misleads you, and what to take when the squad is thin.',
+    standfirst:
+      'Drafting well is worth about ten percentage points of win rate and roughly doubles how often you take the title. Here is where the difference comes from.',
+    body: [
+      {
+        p: 'Every draft is the same shape: a real squad is dealt, you take one player from it, and you do that until your eleven is full. What follows is drawn from running that process thousands of times and playing the seasons out.',
+      },
+      { h: 'The overall rating is the wrong thing to maximise' },
+      {
+        p: 'It is the obvious number and it is the most misleading one. A rating is impact per match, so an all-rounder who bats a bit and bowls a bit outranks a specialist who does one thing very well. An eleven built by taking the highest number on offer every time ends up with seven players who are good at both and nobody who is outstanding at either.',
+      },
+      {
+        p: 'The engine plays each delivery as a contest between a bowler and a batter. A top order of 85-rated batters scores more than a top order of 88-rated all-rounders, because what is being tested on each ball is batting, not general worth.',
+      },
+      { h: 'Your attack matters more than your batting' },
+      {
+        p: 'A good attack is worth between 62 and 132 runs against the same batting side, measured across thousands of innings. That is a larger swing than almost any batting decision you can make, and bowlers are the slots people fill last and most carelessly.',
+      },
+      {
+        p: 'The fourth and fifth bowlers are where seasons are lost. A side with three excellent bowlers and two who leak runs gets picked apart in the overs the weak ones bowl, and there is no way to hide them: the quotas mean everybody bowls.',
+      },
+      { h: 'Read the surface before you take the spinner' },
+      {
+        p: 'Pitch types are drawn per match, and every batter carries a separate rating against pace and against spin. Forty-six per cent of players differ by eight points or more between the two, so a side full of players who cannot handle spin has a real and specific problem on a turning pitch.',
+      },
+      {
+        p: 'The same is true from the other end: on a spinning surface your own spinners are worth about eighteen per cent more, so a balanced attack is worth more than a specialised one across a whole season of mixed pitches.',
+      },
+      { h: 'Season form against prime' },
+      {
+        p: '<strong>Season form</strong> rates each player for the year on his card, so a lean season is a lean card. <strong>Prime</strong> rates everyone at his career best. Prime sounds easier and is not: your opponents are primed too, and the field compresses, so the same draft wins fewer matches in prime than in season form.',
+      },
+      {
+        p: 'Measured across forty seasons apiece, a strong draft takes the T20 League title about fifteen times in forty under season form and eight in forty under prime. If you want the harder game, prime is it.',
+      },
+      { h: 'When the squad in front of you is thin' },
+      {
+        list: [
+          '<strong>Take the slot you cannot fill later.</strong> Keepers and specialist spinners are scarce. A brilliant fourth batter is worth less than an adequate keeper if the keeper slot ends up empty.',
+          '<strong>Prefer a specialist for a specialist slot.</strong> An all-rounder placed at number three is being asked to do the job of a batter, and his rating was earned partly with the ball.',
+          '<strong>Do not chase a name.</strong> A great player in a poor season is a poor card, and the card is what plays.',
+        ],
+      },
+      { h: 'What the difference actually amounts to' },
+      {
+        table: {
+          head: ['Tournament', 'Drafting well', 'Drafting loosely'],
+          rows: [
+            ['T20 League', '72% of group games, 15 titles in 40', '65%, 12 in 40'],
+            ['ODI World Cup', '69%, 10 titles', '63%, 9'],
+            ['T20 World Cup', '57%, 5 titles', '45%, 3'],
+            ['Test Championship', '50%, 17 titles', '38%, 7'],
+          ],
+        },
+      },
+      {
+        p: 'The Twenty20 World Cup is the hardest to win and always will be. Seven group games is not enough cricket for the better side to be proved better, which is close to the reason the format was invented.',
       },
     ],
   },
