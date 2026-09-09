@@ -1,0 +1,26 @@
+# What may be held, and for how long.
+#
+# Everything was being served with `max-age=0, must-revalidate` and nothing was
+# being held at Cloudflare's edge at all — `cf-cache-status: DYNAMIC` on the
+# archive, which is 984 KB that every first-time visitor was pulling from origin
+# rather than from a machine near them. First byte was taking 600–870ms for a
+# file that had not changed in days.
+
+# The archive: a stable name for changing content, so the browser keeps asking
+# and the edge keeps answering. A revalidation against a nearby edge is a 304 of
+# no bytes; the same revalidation against origin is most of a second. Pages
+# clears the edge on every deploy, so a new archive is never more than a deploy
+# away, and stale-while-revalidate covers the seconds around one.
+/archive.json
+  Cache-Control: public, max-age=0, must-revalidate, s-maxage=3600, stale-while-revalidate=86400
+
+# The bundle is content-hashed — index-C4XR_KdJ.js only ever holds one thing —
+# so it can be held forever and never revalidated. It was set to four hours with
+# a revalidation on top, which is a round trip for a file that cannot change.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The written pages change when they are rebuilt and not otherwise, but they are
+# small enough that correctness is worth more than the milliseconds.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate, s-maxage=600

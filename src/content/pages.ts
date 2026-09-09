@@ -448,6 +448,13 @@ export const PAGES: Page[] = [
           '<a href="/the-archive">The archive</a> — 15,270 matches, and what is deliberately left out.',
         ],
       },
+      { h: 'The source' },
+      {
+        p: 'SPIN XI is open source under the GNU Affero General Public License v3.0. The whole thing — the rating model, the match engine, the checks that keep it honest — is at <a href="https://github.com/vsharma245-create/spin-xi" rel="noreferrer noopener">github.com/vsharma245-create/spin-xi</a>.',
+      },
+      {
+        p: 'You are welcome to read it, run it, and build on it. If you run a modified version as a service of your own, the licence asks that you publish your source too.',
+      },
       { h: 'Contact' },
       {
         p: 'Questions, corrections and complaints about a rating are all welcome, and the last of those is the most useful. Write to <a href="mailto:hello@spin-xi.com">hello@spin-xi.com</a>.',

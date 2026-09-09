@@ -1035,6 +1035,28 @@ dropped; `analytics.sql`, `multiplayer.sql` and `live.sql` only ever add. They
 apply in that order, and `db-check` runs each one twice — the second time over
 the previous release's shape.
 
+## Licence
+
+**GNU Affero General Public License v3.0.** Copyright © 2026 Kirnesh Sharma.
+
+You may read it, run it, change it and build on it. The one condition that
+matters: if you run a modified version as a network service, you have to publish
+your source too. That is the whole point of the Affero clause and the reason it
+is this licence rather than MIT — the work is genuinely open to learn from and
+to build on, and it is not open to being lifted wholesale onto a competing
+domain with the changes kept private.
+
+The full text is in [LICENSE](LICENSE).
+
+Two things the licence does not cover, because they are not mine to license:
+
+- **The match data** is [Cricsheet's](https://cricsheet.org), published freely
+  for this kind of use. The ratings computed from it are this project's, but the
+  underlying record is theirs and the credit belongs to them.
+- **Player and team names** are used descriptively. Nothing here is affiliated
+  with or endorsed by any board, league, franchise or player association, and no
+  official logos, crests or player images are used.
+
 ## Notes for whoever picks this up
 
 - **framer-motion is pinned to 11.18.2 deliberately.** On v13 with React 19,
