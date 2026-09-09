@@ -196,6 +196,77 @@ ${others.map((o) => `          <li><a href="/${o.slug}">${esc(o.title)}</a> — 
 `
 }
 
+/* ── The app's own routes ─────────────────────────────────────────────────── */
+
+/**
+ * Every screen of the game served one file, so seven URLs shared a title, a
+ * description and a canonical — which to a search engine is one page indexed
+ * and six ignored, or worse, a thin site.
+ *
+ * These are the same built `index.html` with their own head and their own
+ * no-script description. The application still boots and the router still
+ * reads the path, so nothing about playing changes; what changes is that a
+ * crawler can tell the pages apart.
+ */
+const ROUTES = [
+  {
+    path: 'play',
+    title: 'Play — draft an XI and simulate a season',
+    blurb:
+      'Spin for a real cricket squad, draft one player, build an eleven and play a tournament out match by match. Free, no sign-up.',
+    lead: 'Draft an XI and play a season',
+    body: 'Spin for a real squad from a real season, take one player from it, and repeat until you have eleven. Then play the tournament out — every delivery simulated, every match watchable ball by ball.',
+  },
+  {
+    path: 'daily',
+    title: 'Daily challenge — one draw, everybody the same squads',
+    blurb:
+      'One fixed sequence of squads a day. Everybody drafts from the same draw, so the only variable is who read it best.',
+    lead: 'The daily challenge',
+    body: 'One fixed draw a day. Everybody is dealt the same squads in the same order, so the board underneath it is a straight question of who read them best. It resets at midnight and keeps a streak.',
+  },
+  {
+    path: 'leaderboard',
+    title: 'Leaderboard — the best XIs anybody has drafted',
+    blurb:
+      'Every tournament keeps its own board, read all-time, this week or today. Tap any row to see the eleven that scored it.',
+    lead: 'Leaderboard',
+    body: 'Every tournament keeps its own board, because a fourteen-game league and a twelve-Test championship cannot be ranked on the same column. Read it all-time, this week or today, and tap any row for the eleven that scored it.',
+  },
+  {
+    path: 'multiplayer',
+    title: 'Play with friends — live drafts and private leagues',
+    blurb:
+      'Four of you take turns out of one shared pool, or run a private league where everybody drafts on the same locked rules.',
+    lead: 'Play against people you know',
+    body: 'Two ways. A live draft where up to four of you take turns out of one shared pool, snake order, a clock on every pick. Or a private league where everybody drafts on the same locked rules and the table sorts itself.',
+  },
+]
+
+function routePage(route, shell) {
+  const url = `${SITE}/${route.path}`
+  let html = shell
+    .replace(/<title>[^<]*<\/title>/, `<title>${esc(route.title)} — SPIN XI</title>`)
+    .replace(
+      /<meta\s+name="description"[^>]*>/,
+      `<meta name="description" content="${esc(route.blurb)}" />`,
+    )
+    .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${esc(route.title)}" />`)
+    .replace(
+      /<meta property="og:description"[^>]*>/,
+      `<meta property="og:description" content="${esc(route.blurb)}" />`,
+    )
+    .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${url}" />`)
+  // Its own canonical, or all four still point at the home page.
+  html = html.replace('</head>', `  <link rel="canonical" href="${url}" />\n  </head>`)
+  // And its own description for whoever is not running the scripts.
+  html = html.replace(
+    /<h1 style="font-size:1.9rem;margin:0 0 .5rem">[^<]*<\/h1>/,
+    `<h1 style="font-size:1.9rem;margin:0 0 .5rem">${esc(route.lead)}</h1>\n        <p style="color:#CBC5B4">${esc(route.body)}</p>`,
+  )
+  return html
+}
+
 /* ── Read the authored pages out of the TypeScript source ─────────────────── */
 const src = await readFile(join(ROOT, 'src/content/pages.ts'), 'utf8')
 const body = src.slice(src.indexOf('export const PAGES'))
@@ -209,6 +280,12 @@ for (const page of PAGES) {
   await writeFile(join(out, `${page.slug}.html`), render(page, PAGES))
 }
 
+/* The game's own screens, each with a head of its own. */
+const shell = await readFile(join(out, 'index.html'), 'utf8')
+for (const route of ROUTES) {
+  await writeFile(join(out, `${route.path}.html`), routePage(route, shell))
+}
+
 /* The sitemap has to know about them or nobody will. */
 const urls = [
   { loc: `${SITE}/`, freq: 'weekly', pri: '1.0' },
@@ -220,15 +297,19 @@ const urls = [
   { loc: `${SITE}/privacy`, freq: 'monthly', pri: '0.3' },
   { loc: `${SITE}/terms`, freq: 'monthly', pri: '0.3' },
 ]
+const today = new Date().toISOString().slice(0, 10)
 await writeFile(
   join(out, 'sitemap.xml'),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `  <url><loc>${u.loc}</loc><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`).join('\n')}
+${urls.map((u) => `  <url><loc>${u.loc}</loc><lastmod>${today}</lastmod><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`).join('\n')}
 </urlset>
 `,
 )
 
 const words = PAGES.reduce(
   (a, p) => a + JSON.stringify(p.body).split(/\s+/).length, 0)
-console.log(`  ${PAGES.length} pages written · about ${words.toLocaleString()} words · sitemap updated`)
+console.log(
+  `  ${PAGES.length} written pages · ${ROUTES.length} app routes given their own head · ` +
+    `about ${words.toLocaleString()} words · sitemap updated`,
+)
