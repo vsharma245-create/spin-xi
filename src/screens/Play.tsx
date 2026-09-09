@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Screen } from '../components/ui'
@@ -42,6 +43,17 @@ export default function Play() {
    * faces the eleven spins their mate faced, and the score means something.
    */
   const challengeDraw = Number(params.get('draw')) || null
+  /*
+   * What they were challenged to, where somebody said.
+   *
+   * The draw always travelled in the link and nothing else did, so whoever
+   * clicked one landed on an ordinary setup screen with no idea they had been
+   * challenged, what the target was, or that they were about to face the same
+   * squads in the same order. One person arrived from a share and was told
+   * none of it.
+   */
+  const beat = Number(params.get('beat')) || null
+  const beatBy = params.get('by')
   const daily = useMemo(() => todaysChallenge(), [])
 
   /*
@@ -276,11 +288,31 @@ export default function Play() {
   return (
     <Screen>
         {phase === 'setup' && (
-          <DraftSetup
-            key="setup"
-            initialFormat={formatParam ?? undefined}
-            onStart={(config) => start(config, 0, challengeDraw ?? undefined)}
-          />
+          <>
+            {challengeDraw && beat && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 rounded-card border border-gold/35 bg-gold/[0.07] px-4 py-3.5"
+              >
+                <span className="label">you have been challenged</span>
+                <p className="mt-1.5 text-[13px] leading-snug text-cream">
+                  <span className="font-bold">{beatBy || 'Somebody'}</span> scored{' '}
+                  <span className="stat-num text-[17px] text-gold">{beat.toLocaleString()}</span>{' '}
+                  with these squads.
+                </p>
+                <p className="mt-1 text-[11.5px] leading-snug text-moss">
+                  You get the same {formatParam === 'TEST' ? 'twelve' : 'fourteen'} spins in the
+                  same order. Same players on offer, same decisions — only yours to make.
+                </p>
+              </motion.div>
+            )}
+            <DraftSetup
+              key="setup"
+              initialFormat={formatParam ?? undefined}
+              onStart={(config) => start(config, 0, challengeDraw ?? undefined)}
+            />
+          </>
         )}
 
         {phase === 'draft' && state && (
@@ -332,6 +364,7 @@ export default function Play() {
             key="result"
             result={result}
             rank={rank}
+            challenge={challengeDraw && beat ? { beat, by: beatBy } : null}
             onPlayAgain={playAgain}
             onDaily={() => navigate('/daily')}
             onTrophy={() => setPhase('trophy')}

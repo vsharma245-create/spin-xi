@@ -82,10 +82,23 @@ function Trophy({ gold }: { gold: boolean }) {
  * answered rather than admired. The settings ride along so the challenge is
  * the same tournament on the same terms.
  */
+/**
+ * A link that is a challenge rather than a receipt.
+ *
+ * It always carried the draw — open it and you face the same eleven spins — but
+ * it said so nowhere, so whoever clicked it landed on an ordinary setup screen
+ * with no idea they had been challenged or what they were chasing. The score
+ * and the side's name travel with it now, and the other end reads them.
+ */
 function challengeLink(r: TournamentResult) {
   const base = typeof window === 'undefined' ? 'https://www.spin-xi.com' : window.location.origin
   if (!r.drawSeed) return base
-  const q = new URLSearchParams({ draw: String(r.drawSeed), format: r.format })
+  const q = new URLSearchParams({
+    draw: String(r.drawSeed),
+    format: r.format,
+    beat: String(r.points),
+    by: (r.teamName || 'Their XI').slice(0, 28),
+  })
   return `${base}/play?${q}`
 }
 
@@ -95,18 +108,28 @@ function shareText(r: TournamentResult) {
     .map((m) => (m.outcome === 'W' ? '🟩' : m.outcome === 'D' ? '🟨' : '🟥'))
     .join('')
   const ko = r.knockouts.map((m) => `${m.round} ${m.outcome === 'W' ? '✅' : '❌'}`).join('  ')
+  /*
+   * An invitation, not a scoreboard.
+   *
+   * This used to open with the side's name and its ratings and read as a boast,
+   * and a boast gives whoever receives it nothing to do. Forty-five people
+   * finished a season and one of them shared it. What travels is a number
+   * somebody can beat and the promise that they get the same squads to do it
+   * with — which the link has always delivered and the words never mentioned.
+   */
   return [
-    `SPIN XI · ${t.name}`,
-    r.teamName,
-    `${outcomeHeadline(r)} · ${recordOf(r)} · ${r.points} PTS`,
+    `I got ${r.teamName || 'my XI'} to ${r.points.toLocaleString()} in the SPIN XI ${t.name}.`,
+    `${recordOf(r)} · ${outcomeHeadline(r)}`,
+    '',
     grid,
     ko,
-    `OVR ${r.ratings.ovr} · BAT ${r.ratings.batting} · BOWL ${r.ratings.bowling}`,
-    r.objective ? `${r.objective.title}: ${r.objective.met ? 'ACHIEVED ✅' : 'MISSED ❌'}` : '',
     r.perfect ? 'PERFECT RUN 🏆' : '',
+    '',
+    `Same ${r.matches.length} squads, same order. Beat it 👇`,
   ]
-    .filter(Boolean)
+    .filter((line) => line !== undefined)
     .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
 }
 
 /* ── Screen ──────────────────────────────────────────────────────────────── */
@@ -114,12 +137,15 @@ function shareText(r: TournamentResult) {
 export default function Result({
   result,
   rank,
+  challenge,
   onPlayAgain,
   onDaily,
   onTrophy,
 }: {
   result: TournamentResult
   rank?: number | null
+  /** Set when this season was played off somebody else's challenge link. */
+  challenge?: { beat: number; by: string | null } | null
   onPlayAgain: () => void
   onDaily: () => void
   /** Offered only to the league's top three. */
@@ -398,12 +424,57 @@ export default function Result({
       )}
 
       {/* ── Actions ── */}
+      {/*
+        * Answering the challenge.
+        *
+        * Somebody who arrived from a link and played the whole season was
+        * never told whether they had beaten it, which leaves the loop open at
+        * exactly the moment it could close — and a person who has just won has
+        * the best reason anybody ever has to send one back.
+        */}
+      {challenge && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mt-6 rounded-card border px-4 py-3.5 ${
+            result.points > challenge.beat
+              ? 'border-pitch/40 bg-pitch/[0.08]'
+              : 'border-leather/35 bg-leather/[0.07]'
+          }`}
+        >
+          <span className="label">the challenge</span>
+          <div
+            className={`display mt-1 text-[20px] ${
+              result.points > challenge.beat ? 'text-pitch' : 'text-leather'
+            }`}
+          >
+            {result.points > challenge.beat ? 'YOU BEAT IT' : 'NOT THIS TIME'}
+          </div>
+          <p className="mt-1 text-[11.5px] leading-snug text-moss">
+            {challenge.by || 'They'} scored{' '}
+            <span className="font-bold text-cream-dim">{challenge.beat.toLocaleString()}</span>. You
+            made <span className="font-bold text-cream-dim">{result.points.toLocaleString()}</span>
+            {result.points > challenge.beat
+              ? ` — ${(result.points - challenge.beat).toLocaleString()} clear. Send it back.`
+              : ` — ${(challenge.beat - result.points).toLocaleString()} short. Same squads, one more go.`}
+          </p>
+        </motion.div>
+      )}
+
+      {/*
+        * Challenging somebody is the primary action.
+        *
+        * It was the second of four, in the grey, labelled "Share result" — a
+        * receipt nobody had a reason to press. What the link actually does is
+        * hand somebody the same fourteen squads in the same order, which is a
+        * thing worth doing and which the button never said.
+        */}
       <div className="mt-6 grid gap-2 md:grid-cols-2">
-        <Button size="lg" full onClick={onPlayAgain}>
-          Play again
+        <Button size="lg" full onClick={share}>
+          {copied ? 'Copied ✓' : `Challenge a mate to beat ${result.points.toLocaleString()}`}
         </Button>
-        <Button size="lg" variant="secondary" full onClick={share}>
-          {copied ? 'Copied ✓' : 'Share result'}
+        <Button size="lg" variant="secondary" full onClick={onPlayAgain}>
+          Play again
         </Button>
         <Button variant="secondary" full onClick={() => setXiOpen(true)}>
           View XI
